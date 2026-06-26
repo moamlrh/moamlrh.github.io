@@ -47,7 +47,9 @@
         var(--bg);
     }
 
-    button {
+    button,
+    select,
+    input {
       font: inherit;
     }
 
@@ -57,7 +59,6 @@
       display: flex;
       flex-direction: column;
       padding: clamp(12px, 2vw, 24px);
-      transition: filter 120ms ease;
     }
 
     .app.shake {
@@ -228,8 +229,7 @@
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background:
-        linear-gradient(90deg, transparent, rgba(55, 248, 255, 0.08), transparent);
+      background: linear-gradient(90deg, transparent, rgba(55, 248, 255, 0.08), transparent);
       transform: translateX(-110%);
       animation: scan 5s linear infinite;
     }
@@ -243,9 +243,23 @@
     }
 
     @keyframes boardSuccess {
-      0% { box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35), 0 20px 90px rgba(0, 0, 0, 0.34); }
-      45% { box-shadow: inset 0 0 80px rgba(83, 255, 156, 0.18), 0 0 70px rgba(83, 255, 156, 0.2); }
-      100% { box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35), 0 20px 90px rgba(0, 0, 0, 0.34); }
+      0% {
+        box-shadow:
+          inset 0 0 80px rgba(0, 0, 0, 0.35),
+          0 20px 90px rgba(0, 0, 0, 0.34);
+      }
+
+      45% {
+        box-shadow:
+          inset 0 0 80px rgba(83, 255, 156, 0.18),
+          0 0 70px rgba(83, 255, 156, 0.2);
+      }
+
+      100% {
+        box-shadow:
+          inset 0 0 80px rgba(0, 0, 0, 0.35),
+          0 20px 90px rgba(0, 0, 0, 0.34);
+      }
     }
 
     .tile {
@@ -358,6 +372,7 @@
         transform: translate(-50%, -50%) scale(0.5) rotate(-8deg);
         filter: blur(4px);
       }
+
       to {
         opacity: 1;
         transform: translate(-50%, -50%) scale(1) rotate(0);
@@ -370,6 +385,7 @@
         opacity: 0.9;
         transform: scale(0.2);
       }
+
       100% {
         opacity: 0;
         transform: scale(1.4);
@@ -412,10 +428,12 @@
         opacity: 0;
         transform: translate(-50%, -50%) scale(0.76);
       }
+
       18% {
         opacity: 1;
         transform: translate(-50%, -50%) scale(1.05);
       }
+
       100% {
         opacity: 0;
         transform: translate(-50%, -56%) scale(1);
@@ -471,7 +489,9 @@
     }
 
     .modal {
-      width: min(620px, 95vw);
+      width: min(720px, 95vw);
+      max-height: 92dvh;
+      overflow: auto;
       padding: clamp(24px, 5vw, 44px);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 30px;
@@ -497,7 +517,7 @@
 
     .modal p {
       margin: 0 auto;
-      max-width: 510px;
+      max-width: 560px;
       color: var(--muted);
       font-size: clamp(15px, 3.5vw, 18px);
       line-height: 1.55;
@@ -506,7 +526,7 @@
     .instructions {
       display: grid;
       gap: 10px;
-      margin: 24px auto 30px;
+      margin: 24px auto 22px;
       color: rgba(246, 248, 255, 0.82);
       font-size: clamp(13px, 3.2vw, 16px);
       line-height: 1.55;
@@ -521,6 +541,91 @@
       border: 1px solid rgba(255, 255, 255, 0.13);
       color: #fff;
       font-weight: 900;
+    }
+
+    .settings {
+      margin: 22px auto 6px;
+      padding: 14px;
+      max-width: 620px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.055);
+      text-align: left;
+    }
+
+    .settings-title {
+      margin-bottom: 12px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 1000;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      color: rgba(246, 248, 255, 0.72);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+
+    .field select {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      padding: 12px 12px;
+      background: #0d111b;
+      color: var(--text);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .toggle-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      background: rgba(0, 0, 0, 0.18);
+      color: rgba(246, 248, 255, 0.8);
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      width: 22px;
+      height: 22px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .settings-note {
+      margin-top: 12px;
+      color: rgba(246, 248, 255, 0.52);
+      font-size: 12px;
+      line-height: 1.45;
     }
 
     .modal-actions {
@@ -653,6 +758,8 @@
         border-radius: 24px;
       }
 
+      .settings-grid,
+      .toggle-row,
       .fail-stats {
         grid-template-columns: 1fr;
       }
@@ -734,15 +841,62 @@
     <div class="modal">
       <h1>Chimp Test</h1>
       <p>
-        A fast memory game inspired by the classic chimpanzee number test.
-        Numbers appear briefly, then vanish. Tap the blank tiles in order.
+        Memorize the numbers, then tap the hidden tiles in order. Tune the game to be relaxed,
+        competitive, or brutally fast.
       </p>
 
       <div class="instructions">
-        <div>Starts at <span class="pill">3 tiles</span>. Every clear adds one more tile.</div>
-        <div>Numbers stay visible for <span class="pill">2 seconds</span>, then hide.</div>
-        <div>Wrong tap = <span class="pill">Level Failed</span>. Your best level is saved locally.</div>
+        <div>Starts at your selected difficulty. Every clear adds <span class="pill">+1 tile</span>.</div>
+        <div>Use <span class="pill">Timed Pressure</span> for a more competitive mode.</div>
       </div>
+
+      <section class="settings">
+        <div class="settings-title">Game Options</div>
+
+        <div class="settings-grid">
+          <div class="field">
+            <label for="difficultySelect">Difficulty</label>
+            <select id="difficultySelect">
+              <option value="easy">Easy — 3 tiles, forgiving</option>
+              <option value="medium">Medium — balanced</option>
+              <option value="hard">Hard — starts at 4</option>
+              <option value="expert">Expert — starts at 5, fast</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="speedSelect">Reveal Speed</label>
+            <select id="speedSelect">
+              <option value="slow">Slow — easier to memorize</option>
+              <option value="normal">Normal — classic</option>
+              <option value="fast">Fast — challenging</option>
+              <option value="flash">Flash — brutal</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            Timed Pressure
+            <input type="checkbox" id="timedToggle" />
+          </label>
+
+          <label class="toggle">
+            Sound
+            <input type="checkbox" id="soundToggle" />
+          </label>
+
+          <label class="toggle">
+            Vibration
+            <input type="checkbox" id="vibrationToggle" />
+          </label>
+        </div>
+
+        <div class="settings-note">
+          Without timed pressure, the timer simply shows how long you took. With timed pressure,
+          you must finish before the bar runs out.
+        </div>
+      </section>
 
       <div class="modal-actions">
         <button class="primary-btn" id="startBtn">Start Game</button>
@@ -772,7 +926,8 @@
 
       <div class="modal-actions">
         <button class="primary-btn" id="retryBtn">Retry Level</button>
-        <button class="secondary-btn" id="restartBtn">Restart From 3</button>
+        <button class="secondary-btn" id="restartBtn">Restart</button>
+        <button class="secondary-btn" id="optionsBtn">Options</button>
       </div>
     </div>
   </section>
@@ -781,14 +936,10 @@
     /**
      * ============================================================
      * CONFIG
-     * Change these values to quickly reskin or tune the game.
+     * Edit these values to reskin or retune the game.
      * ============================================================
      */
     const CONFIG = {
-      startingDifficulty: 3,
-      previewDurationMs: 2000,
-      successDelayMs: 680,
-
       tileColor: "#1c2433",
       backgroundColor: "#090b10",
       accentColor: "#37f8ff",
@@ -797,19 +948,74 @@
       dangerColor: "#ff4d6d",
       warningColor: "#ffe66d",
 
+      basePreviewDurationMs: 2000,
+      successDelayMs: 680,
+
       minTileSize: 44,
       maxTileSize: 82,
       tileGap: 12,
 
-      localStorageKey: "chimp-test-neon-best-level",
+      bestStorageKey: "chimp-test-neon-best-level",
+      settingsStorageKey: "chimp-test-neon-settings-v2",
 
-      enableSound: true,
-      enableVibration: true
+      difficulties: {
+        easy: {
+          label: "Easy",
+          startingLevel: 3,
+          previewMultiplier: 1.25,
+          timedMultiplier: 1.35
+        },
+        medium: {
+          label: "Medium",
+          startingLevel: 3,
+          previewMultiplier: 1,
+          timedMultiplier: 1
+        },
+        hard: {
+          label: "Hard",
+          startingLevel: 4,
+          previewMultiplier: 0.82,
+          timedMultiplier: 0.78
+        },
+        expert: {
+          label: "Expert",
+          startingLevel: 5,
+          previewMultiplier: 0.65,
+          timedMultiplier: 0.62
+        }
+      },
+
+      revealSpeeds: {
+        slow: {
+          label: "Slow",
+          multiplier: 1.45
+        },
+        normal: {
+          label: "Normal",
+          multiplier: 1
+        },
+        fast: {
+          label: "Fast",
+          multiplier: 0.72
+        },
+        flash: {
+          label: "Flash",
+          multiplier: 0.48
+        }
+      },
+
+      defaultSettings: {
+        difficulty: "medium",
+        revealSpeed: "normal",
+        timed: false,
+        sound: true,
+        vibration: true
+      }
     };
 
     /**
      * ============================================================
-     * DOM REFERENCES
+     * DOM
      * ============================================================
      */
     const app = document.getElementById("app");
@@ -824,6 +1030,13 @@
     const startBtn = document.getElementById("startBtn");
     const retryBtn = document.getElementById("retryBtn");
     const restartBtn = document.getElementById("restartBtn");
+    const optionsBtn = document.getElementById("optionsBtn");
+
+    const difficultySelect = document.getElementById("difficultySelect");
+    const speedSelect = document.getElementById("speedSelect");
+    const timedToggle = document.getElementById("timedToggle");
+    const soundToggle = document.getElementById("soundToggle");
+    const vibrationToggle = document.getElementById("vibrationToggle");
 
     const levelText = document.getElementById("levelText");
     const statusText = document.getElementById("statusText");
@@ -838,12 +1051,12 @@
 
     /**
      * ============================================================
-     * GAME STATE
+     * STATE
      * ============================================================
      */
     const game = {
-      phase: "menu", // menu | preview | playing | success | failed
-      level: CONFIG.startingDifficulty,
+      phase: "menu",
+      level: CONFIG.difficulties.medium.startingLevel,
       expected: 1,
       combo: 0,
       best: loadBestLevel(),
@@ -851,14 +1064,15 @@
       roundToken: 0,
       previewStart: 0,
       playStart: 0,
-      speedBonusWindowMs: 0,
-      animationFrame: null
+      previewDurationMs: CONFIG.basePreviewDurationMs,
+      playLimitMs: 0,
+      animationFrame: null,
+      settings: loadSettings()
     };
 
     /**
      * ============================================================
      * AUDIO
-     * Small Web Audio API sounds. No external files.
      * ============================================================
      */
     const audio = {
@@ -866,7 +1080,7 @@
     };
 
     function initAudio() {
-      if (!CONFIG.enableSound || audio.ctx) return;
+      if (!game.settings.sound || audio.ctx) return;
 
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
@@ -875,7 +1089,7 @@
     }
 
     function playTone(freq, duration = 0.08, type = "sine", volume = 0.05, delay = 0) {
-      if (!CONFIG.enableSound || !audio.ctx) return;
+      if (!game.settings.sound || !audio.ctx) return;
 
       const now = audio.ctx.currentTime + delay;
       const osc = audio.ctx.createOscillator();
@@ -906,7 +1120,7 @@
     }
 
     function playErrorSound() {
-      if (!CONFIG.enableSound || !audio.ctx) return;
+      if (!game.settings.sound || !audio.ctx) return;
 
       const now = audio.ctx.currentTime;
       const osc = audio.ctx.createOscillator();
@@ -929,16 +1143,24 @@
 
     /**
      * ============================================================
-     * INITIALIZATION
+     * INIT
      * ============================================================
      */
     function init() {
       applyThemeFromConfig();
+      syncSettingsToUI();
       updateHud();
 
       startBtn.addEventListener("click", () => startGame(true));
       retryBtn.addEventListener("click", retryLevel);
       restartBtn.addEventListener("click", () => startGame(true));
+      optionsBtn.addEventListener("click", openOptions);
+
+      difficultySelect.addEventListener("change", saveSettingsFromUI);
+      speedSelect.addEventListener("change", saveSettingsFromUI);
+      timedToggle.addEventListener("change", saveSettingsFromUI);
+      soundToggle.addEventListener("change", saveSettingsFromUI);
+      vibrationToggle.addEventListener("change", saveSettingsFromUI);
 
       window.addEventListener("resize", refreshTileSize);
 
@@ -949,7 +1171,7 @@
         }
 
         if (event.key === "Escape" && game.phase === "failed") {
-          startGame(true);
+          openOptions();
         }
       });
 
@@ -970,10 +1192,83 @@
 
     /**
      * ============================================================
+     * SETTINGS
+     * ============================================================
+     */
+    function syncSettingsToUI() {
+      difficultySelect.value = game.settings.difficulty;
+      speedSelect.value = game.settings.revealSpeed;
+      timedToggle.checked = game.settings.timed;
+      soundToggle.checked = game.settings.sound;
+      vibrationToggle.checked = game.settings.vibration;
+    }
+
+    function saveSettingsFromUI() {
+      game.settings = {
+        difficulty: difficultySelect.value,
+        revealSpeed: speedSelect.value,
+        timed: timedToggle.checked,
+        sound: soundToggle.checked,
+        vibration: vibrationToggle.checked
+      };
+
+      saveSettings(game.settings);
+      updateHud();
+    }
+
+    function getDifficultyConfig() {
+      return CONFIG.difficulties[game.settings.difficulty] || CONFIG.difficulties.medium;
+    }
+
+    function getRevealSpeedConfig() {
+      return CONFIG.revealSpeeds[game.settings.revealSpeed] || CONFIG.revealSpeeds.normal;
+    }
+
+    function calculatePreviewDuration() {
+      const difficulty = getDifficultyConfig();
+      const speed = getRevealSpeedConfig();
+
+      return Math.round(CONFIG.basePreviewDurationMs * difficulty.previewMultiplier * speed.multiplier);
+    }
+
+    function calculatePlayLimit(level) {
+      const difficulty = getDifficultyConfig();
+
+      const base = 2800;
+      const perTile = 850;
+      const raw = base + level * perTile;
+
+      return Math.round(raw * difficulty.timedMultiplier);
+    }
+
+    function loadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CONFIG.settingsStorageKey));
+
+        return {
+          ...CONFIG.defaultSettings,
+          ...(saved || {})
+        };
+      } catch {
+        return { ...CONFIG.defaultSettings };
+      }
+    }
+
+    function saveSettings(settings) {
+      try {
+        localStorage.setItem(CONFIG.settingsStorageKey, JSON.stringify(settings));
+      } catch {
+        // Some private browsing modes may block localStorage.
+      }
+    }
+
+    /**
+     * ============================================================
      * GAME FLOW
      * ============================================================
      */
     function startGame(resetLevel) {
+      saveSettingsFromUI();
       initAudio();
 
       if (audio.ctx && audio.ctx.state === "suspended") {
@@ -981,7 +1276,7 @@
       }
 
       if (resetLevel) {
-        game.level = CONFIG.startingDifficulty;
+        game.level = getDifficultyConfig().startingLevel;
         game.combo = 0;
       }
 
@@ -989,6 +1284,16 @@
       failOverlay.classList.add("hidden");
 
       startRound();
+    }
+
+    function openOptions() {
+      game.phase = "menu";
+      failOverlay.classList.add("hidden");
+      startOverlay.classList.remove("hidden");
+      statusText.textContent = "Ready";
+      timerBar.style.transform = "scaleX(1)";
+      clearBoard();
+      updateHud();
     }
 
     function retryLevel() {
@@ -1003,13 +1308,14 @@
       game.expected = 1;
       game.previewStart = performance.now();
       game.playStart = 0;
-      game.speedBonusWindowMs = calculateSpeedBonusWindow(game.level);
+      game.previewDurationMs = calculatePreviewDuration();
+      game.playLimitMs = calculatePlayLimit(game.level);
 
       clearBoard();
       generateTiles(game.level);
 
       statusText.textContent = "Memorize";
-      timeText.textContent = `${(CONFIG.previewDurationMs / 1000).toFixed(1)}s`;
+      timeText.textContent = `${(game.previewDurationMs / 1000).toFixed(1)}s`;
       timerBar.style.transform = "scaleX(1)";
 
       updateHud();
@@ -1019,7 +1325,7 @@
       window.setTimeout(() => {
         if (token !== game.roundToken || game.phase !== "preview") return;
         hideNumbers();
-      }, CONFIG.previewDurationMs);
+      }, game.previewDurationMs);
     }
 
     function hideNumbers() {
@@ -1029,11 +1335,14 @@
       for (const tile of game.tiles) {
         tile.element.textContent = "";
         tile.element.classList.add("concealed");
-        tile.element.setAttribute("aria-label", `Hidden number tile`);
+        tile.element.setAttribute("aria-label", "Hidden number tile");
       }
 
       statusText.textContent = `Find ${game.expected}`;
-      timeText.textContent = "0.0s";
+      timeText.textContent = game.settings.timed
+        ? `${(game.playLimitMs / 1000).toFixed(1)}s`
+        : "0.0s";
+
       timerBar.style.transform = "scaleX(1)";
     }
 
@@ -1042,6 +1351,7 @@
       game.combo += 1;
 
       const completedLevel = game.level;
+
       if (completedLevel > game.best) {
         game.best = completedLevel;
         saveBestLevel(game.best);
@@ -1061,7 +1371,9 @@
       }, CONFIG.successDelayMs);
     }
 
-    function failRound(clickedTile) {
+    function failRound(clickedTile, reason = "wrong") {
+      if (game.phase === "failed") return;
+
       game.phase = "failed";
       game.combo = 0;
 
@@ -1071,7 +1383,12 @@
       playErrorSound();
       vibrate([70, 45, 70]);
 
-      failMessage.textContent = `You tapped ${clickedTile.number}, but the next number was ${game.expected}.`;
+      if (reason === "time") {
+        failMessage.textContent = `Time ran out. The next number was ${game.expected}.`;
+      } else {
+        failMessage.textContent = `You tapped ${clickedTile.number}, but the next number was ${game.expected}.`;
+      }
+
       failLevel.textContent = String(game.level);
       failExpected.textContent = String(game.expected);
       failBest.textContent = String(game.best);
@@ -1083,7 +1400,7 @@
 
     /**
      * ============================================================
-     * TILE GENERATION / LAYOUT
+     * TILES
      * ============================================================
      */
     function clearBoard() {
@@ -1100,6 +1417,7 @@
       for (let number = 1; number <= count; number++) {
         const position = positions[number - 1];
         const tile = createTile(number, position);
+
         game.tiles.push(tile);
         board.appendChild(tile.element);
       }
@@ -1135,8 +1453,8 @@
       let cols = Math.ceil(Math.sqrt(count * aspect)) + 1;
       let rows = Math.ceil(count / cols) + 1;
 
-      cols = clamp(cols, 3, 10);
-      rows = clamp(rows, 3, 10);
+      cols = clamp(cols, 3, 12);
+      rows = clamp(rows, 3, 12);
 
       while (cols * rows < count) {
         if (cols <= rows) cols++;
@@ -1187,7 +1505,7 @@
 
     /**
      * ============================================================
-     * INPUT HANDLING
+     * INPUT
      * ============================================================
      */
     function handleTileClick(number) {
@@ -1197,12 +1515,11 @@
       if (!tile || tile.element.classList.contains("cleared")) return;
 
       if (number !== game.expected) {
-        failRound(tile);
+        failRound(tile, "wrong");
         return;
       }
 
       markTileCorrect(tile);
-
       playClickSound(number);
       vibrate(12);
 
@@ -1238,9 +1555,12 @@
         }
       }
 
-      clickedTile.element.classList.add("wrong");
+      if (clickedTile) {
+        clickedTile.element.classList.add("wrong");
+      }
 
       const expectedTile = game.tiles.find(tile => tile.number === game.expected);
+
       if (expectedTile && expectedTile !== clickedTile) {
         expectedTile.element.classList.add("hint");
       }
@@ -1248,14 +1568,14 @@
 
     /**
      * ============================================================
-     * HUD / ANIMATION LOOP
+     * HUD LOOP
      * ============================================================
      */
     function tick(now) {
       if (game.phase === "preview") {
         const elapsed = now - game.previewStart;
-        const remaining = Math.max(0, CONFIG.previewDurationMs - elapsed);
-        const percent = clamp(remaining / CONFIG.previewDurationMs, 0, 1);
+        const remaining = Math.max(0, game.previewDurationMs - elapsed);
+        const percent = clamp(remaining / game.previewDurationMs, 0, 1);
 
         timerBar.style.transform = `scaleX(${percent})`;
         timeText.textContent = `${(remaining / 1000).toFixed(1)}s`;
@@ -1263,10 +1583,21 @@
 
       if (game.phase === "playing") {
         const elapsed = now - game.playStart;
-        const percent = clamp(1 - elapsed / game.speedBonusWindowMs, 0, 1);
 
-        timerBar.style.transform = `scaleX(${percent})`;
-        timeText.textContent = `${(elapsed / 1000).toFixed(1)}s`;
+        if (game.settings.timed) {
+          const remaining = Math.max(0, game.playLimitMs - elapsed);
+          const percent = clamp(remaining / game.playLimitMs, 0, 1);
+
+          timerBar.style.transform = `scaleX(${percent})`;
+          timeText.textContent = `${(remaining / 1000).toFixed(1)}s`;
+
+          if (remaining <= 0) {
+            failRound(null, "time");
+          }
+        } else {
+          timerBar.style.transform = "scaleX(1)";
+          timeText.textContent = `${(elapsed / 1000).toFixed(1)}s`;
+        }
       }
 
       game.animationFrame = requestAnimationFrame(tick);
@@ -1276,10 +1607,12 @@
       levelText.textContent = String(game.level);
       bestText.textContent = String(game.best);
       comboText.textContent = String(game.combo);
-    }
 
-    function calculateSpeedBonusWindow(level) {
-      return clamp(5000 + level * 420, 5000, 14000);
+      if (game.phase === "menu") {
+        const difficulty = getDifficultyConfig();
+        statusText.textContent = `${difficulty.label} Mode`;
+        levelText.textContent = String(difficulty.startingLevel);
+      }
     }
 
     /**
@@ -1321,7 +1654,7 @@
     }
 
     function vibrate(pattern) {
-      if (!CONFIG.enableVibration) return;
+      if (!game.settings.vibration) return;
       if ("vibrate" in navigator) navigator.vibrate(pattern);
     }
 
@@ -1332,7 +1665,7 @@
      */
     function loadBestLevel() {
       try {
-        return Number(localStorage.getItem(CONFIG.localStorageKey) || 0);
+        return Number(localStorage.getItem(CONFIG.bestStorageKey) || 0);
       } catch {
         return 0;
       }
@@ -1340,15 +1673,15 @@
 
     function saveBestLevel(level) {
       try {
-        localStorage.setItem(CONFIG.localStorageKey, String(level));
+        localStorage.setItem(CONFIG.bestStorageKey, String(level));
       } catch {
-        // localStorage may be unavailable in some private browsing modes.
+        // localStorage may be blocked in private browsing.
       }
     }
 
     /**
      * ============================================================
-     * UTILITIES
+     * UTILS
      * ============================================================
      */
     function clamp(value, min, max) {
