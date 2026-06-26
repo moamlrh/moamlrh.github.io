@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <title>My Blog</title>
-
+  <title>Mo</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,17 +12,14 @@
       margin: 0;
       line-height: 1.6;
     }
-
     header {
       background-color: #222;
       color: white;
       text-align: center;
       padding: 40px 20px;
     }
-
-    header h1 {
-      margin: 0;
-    }
+    header h1 { margin: 0; }
+    header p { margin: 8px 0 0; color: #cfcfcf; }
 
     main {
       max-width: 800px;
@@ -32,34 +27,53 @@
       padding: 0 20px;
     }
 
-    .post-card {
+    /* ---- tabs ---- */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 26px;
+    }
+    .tab {
+      cursor: pointer;
+      border: 1px solid #ddd;
+      background: #fff;
+      color: #555;
+      font: inherit;
+      font-weight: bold;
+      padding: 10px 26px;
+      border-radius: 999px;
+      transition: all .15s ease;
+    }
+    .tab:hover { border-color: #bbb; }
+    .tab.active {
+      background: #222;
+      color: #fff;
+      border-color: #222;
+    }
+    .tab:focus-visible { outline: 2px solid #007acc; outline-offset: 2px; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .card {
       background: white;
       padding: 25px;
       margin-bottom: 20px;
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
+    .card h2 { margin-top: 0; }
+    .date { color: #777; font-size: 14px; }
 
-    .post-card h2 {
-      margin-top: 0;
-    }
-
-    .date {
-      color: #777;
-      font-size: 14px;
-    }
-
-    .read-more {
+    .link {
       display: inline-block;
       margin-top: 10px;
       color: #007acc;
       font-weight: bold;
       text-decoration: none;
     }
-
-    .read-more:hover {
-      text-decoration: underline;
-    }
+    .link:hover { text-decoration: underline; }
 
     footer {
       text-align: center;
@@ -69,27 +83,70 @@
     }
   </style>
 </head>
-
 <body>
   <header>
-    <h1>Sup!</h1>
+    <h1>Mo</h1>
     <p>Things/Topics I’m interested in, and enjoy sharing.</p>
-    <p><a class="read-more" href="games/2d.html">2D physics engine</a></p>
   </header>
 
   <main>
-    <article class="post-card">
-      <h2>Init</h2>
-      <p class="date">Published on June 25, 2026</p>
-      <p>
-        Hello world!
-      </p>
-      <a class="read-more" href="posts/init.html">Read more...</a>
-    </article>
+    <div class="tabs" role="tablist">
+      <button class="tab active" id="tab-posts" role="tab" aria-controls="posts" aria-selected="true">Posts</button>
+      <button class="tab" id="tab-games" role="tab" aria-controls="games" aria-selected="false">Games</button>
+    </div>
+
+    <!-- POSTS -->
+    <section id="posts" class="panel active" role="tabpanel" aria-labelledby="tab-posts">
+      <article class="card">
+        <h2>Init</h2>
+        <p class="date">Published on June 25, 2026</p>
+        <p>Hello world!</p>
+        <a class="link" href="posts/init.html">Read more...</a>
+      </article>
+    </section>
+
+    <!-- GAMES -->
+    <section id="games" class="panel" role="tabpanel" aria-labelledby="tab-games" hidden>
+      <article class="card">
+        <h2>ASCEND</h2>
+        <p>Stack the skyline. A one-tap tower builder — easy to learn, hard to master.</p>
+        <a class="link" href="games/ascend.html">Play →</a>
+      </article>
+      <article class="card">
+        <h2>Neon</h2>
+        <p>A neon arcade game.</p>
+        <a class="link" href="games/neon.html">Play →</a>
+      </article>
+      <article class="card">
+        <h2>2D Physics Engine</h2>
+        <p>An interactive 2D physics sandbox.</p>
+        <a class="link" href="games/2d.html">Play →</a>
+      </article>
+    </section>
   </main>
 
   <footer>
     <p>Made by mo | Hosted on GitHub Pages</p>
   </footer>
+
+  <script>
+    const tabs = {
+      posts: { tab: document.getElementById('tab-posts'), panel: document.getElementById('posts') },
+      games: { tab: document.getElementById('tab-games'), panel: document.getElementById('games') }
+    };
+
+    function show(name) {
+      for (const key in tabs) {
+        const on = key === name;
+        tabs[key].tab.classList.toggle('active', on);
+        tabs[key].tab.setAttribute('aria-selected', on);
+        tabs[key].panel.classList.toggle('active', on);
+        tabs[key].panel.hidden = !on;
+      }
+    }
+
+    tabs.posts.tab.addEventListener('click', () => show('posts'));
+    tabs.games.tab.addEventListener('click', () => show('games'));
+  </script>
 </body>
 </html>
