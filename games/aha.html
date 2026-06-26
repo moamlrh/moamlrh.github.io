@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AHA! — math tricks that finally click</title>
+<style>
+  :root{
+    --bg1:#0f1b2d; --bg2:#152a44;
+    --paper:#fbf7ef; --ink:#1d2733; --soft:#5d6b7d;
+    --coral:#ff6b4a; --mint:#15c39a; --gold:#f5c451; --rose:#e8607a;
+    --line:#e7ddc9;
+    --sans:"Trebuchet MS",Verdana,system-ui,-apple-system,sans-serif;
+    --mono:ui-monospace,"SFMono-Regular","Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:var(--sans);color:var(--ink);
+    background:radial-gradient(130% 100% at 50% -10%, var(--bg2) 0%, var(--bg1) 60%, #0a1322 100%);
+    min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+    padding:18px 14px 28px;
+  }
+  canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:9;}
+
+  /* ---------- top bar ---------- */
+  .top{
+    width:100%;max-width:620px;display:flex;align-items:center;justify-content:space-between;
+    color:#cfe2f5;margin-bottom:16px;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand b{font-size:26px;letter-spacing:.06em;color:#fff;}
+  .brand b span{color:var(--gold);}
+  .brand i{font-style:normal;font-size:12px;color:#8aa3bf;letter-spacing:.14em;text-transform:uppercase;}
+  .stats{display:flex;gap:16px;font-size:13px;}
+  .stats div{text-align:right;line-height:1.2;}
+  .stats .num{font-family:var(--mono);font-size:18px;color:#fff;}
+  .stats .lab{font-size:10px;color:#8aa3bf;letter-spacing:.1em;text-transform:uppercase;}
+  .flame{color:var(--coral);}
+
+  /* ---------- card ---------- */
+  .card{
+    width:100%;max-width:620px;background:var(--paper);border-radius:20px;
+    padding:26px 26px 22px;box-shadow:0 24px 60px rgba(0,0,0,.4), 0 2px 0 rgba(255,255,255,.4) inset;
+    position:relative;overflow:hidden;
+    animation:rise .42s cubic-bezier(.2,.8,.25,1) both;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(16px) scale(.99);}to{opacity:1;transform:none;}}
+
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--coral);font-weight:bold;}
+  h2{margin:6px 0 4px;font-size:clamp(24px,6vw,32px);line-height:1.1;color:var(--ink);}
+  .hook{margin:0 0 16px;color:var(--soft);font-size:14.5px;font-style:italic;}
+
+  /* the signature trick strip */
+  .trick{
+    background:linear-gradient(180deg,#fff8e6,#fdefcf);
+    border:1px solid #f0dca0;border-left:5px solid var(--gold);
+    border-radius:12px;padding:14px 16px;margin-bottom:14px;
+  }
+  .trick .tlab{
+    display:inline-block;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:#a9842a;font-weight:bold;margin-bottom:8px;
+    position:relative;
+  }
+  .trick .tlab::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:3px;border-radius:3px;
+    background:var(--gold);transform:scaleX(.85);transform-origin:left;opacity:.7;}
+  .trick p{margin:7px 0;font-size:15.5px;line-height:1.55;}
+
+  /* math chips */
+  code.m{font-family:var(--mono);background:#eef3f0;color:#0e6b53;
+    padding:1px 7px;border-radius:6px;font-size:.94em;border:1px solid #d8e6df;white-space:nowrap;}
+  .trick code.m{background:#fff5da;color:#9a6a00;border-color:#efd99a;}
+
+  .viz{display:block;width:100%;max-width:360px;margin:6px auto 2px;}
+
+  .turn{display:flex;align-items:center;gap:10px;margin:18px 0 12px;color:var(--soft);
+    font-size:12px;letter-spacing:.16em;text-transform:uppercase;}
+  .turn::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .q{font-size:19px;font-weight:bold;margin:0 0 14px;line-height:1.4;}
+
+  .choices{display:flex;flex-direction:column;gap:10px;}
+  .choice{
+    text-align:left;font:inherit;font-size:17px;cursor:pointer;
+    background:#fff;border:2px solid var(--line);border-radius:12px;
+    padding:14px 16px;color:var(--ink);transition:all .12s ease;
+    display:flex;align-items:center;gap:12px;
+  }
+  .choice .key{font-family:var(--mono);font-size:13px;color:var(--soft);
+    border:1px solid var(--line);border-radius:6px;width:24px;height:24px;
+    display:grid;place-items:center;flex:none;}
+  .choice:hover:not(:disabled){border-color:var(--coral);transform:translateY(-1px);}
+  .choice:disabled{cursor:default;}
+  .choice.correct{border-color:var(--mint);background:#e9faf4;}
+  .choice.correct .key{border-color:var(--mint);background:var(--mint);color:#fff;}
+  .choice.wrong{border-color:var(--rose);background:#fdeef1;animation:nope .35s;}
+  @keyframes nope{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+  .choice:focus-visible{outline:3px solid var(--coral);outline-offset:2px;}
+
+  .explain{
+    margin-top:16px;border-radius:12px;padding:14px 16px;font-size:15px;line-height:1.6;
+    background:#eef4fb;border:1px solid #d8e6f3;display:none;
+  }
+  .explain.show{display:block;animation:rise .3s both;}
+  .explain .eh{font-weight:bold;color:var(--ink);margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+  .explain.good .eh{color:#0e8c6c;}
+  .explain.miss .eh{color:#c0445e;}
+
+  .next{
+    margin-top:16px;width:100%;cursor:pointer;border:0;border-radius:12px;
+    font:inherit;font-size:16px;font-weight:bold;letter-spacing:.04em;color:#fff;
+    padding:15px;background:linear-gradient(180deg,#ff8163,var(--coral));
+    box-shadow:0 10px 24px rgba(255,107,74,.32);display:none;
+  }
+  .next.show{display:block;animation:rise .3s both;}
+  .next:active{transform:translateY(2px);}
+  .next:focus-visible{outline:3px solid #fff;outline-offset:2px;}
+
+  .foot{margin-top:16px;color:#6f87a3;font-size:12px;text-align:center;max-width:620px;}
+  .foot kbd{font-family:var(--mono);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    border-radius:5px;padding:1px 6px;color:#cfe2f5;font-size:11px;}
+
+  @media (max-width:480px){
+    .card{padding:22px 18px 18px;}
+    .stats .lab{display:none;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .card,.explain,.next{animation:none !important;}
+  }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+
+<div class="top">
+  <div class="brand"><b>AHA<span>!</span></b><i>math that clicks</i></div>
+  <div class="stats">
+    <div><div class="num flame" id="streak">0</div><div class="lab">streak 🔥</div></div>
+    <div><div class="num" id="learned">0</div><div class="lab">learned</div></div>
+  </div>
+</div>
+
+<div id="root" class="card"></div>
+
+<div class="foot">Read the trick, then pick an answer — wrong guesses still teach. &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>4</kbd> to answer, <kbd>Enter</kbd> for next</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   AHA! — a math-trick learning game. Single file, vanilla JS.
+   Each card teaches one "scary" topic with a plain-words trick, then a
+   quick try-it. Numbers are generated fresh each round → new every play.
+   Math expressions are written between #hashes# and shown as mono chips.
+   ===================================================================== */
+
+// --- tiny helpers ---
+const R = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;        // random int a..b
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const shuf = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(p=>p[1]);
+const fmt = s => s.replace(/#([^#]+)#/g, '<code class="m">$1</code>');
+
+// build a multiple-choice block from a correct value + distractors
+function mc(correct, distractors){
+  const seen = new Set([String(correct)]);
+  const opts = [{v:String(correct), c:true}];
+  for(const d of distractors){
+    const s = String(d);
+    if(!seen.has(s)){ seen.add(s); opts.push({v:s, c:false}); }
+    if(opts.length>=4) break;
+  }
+  const sh = shuf(opts);
+  return { choices: sh.map(o=>o.v), answer: sh.findIndex(o=>o.c) };
+}
+const money = v => '$'+v.toFixed(2);
+
+/* =====================================================================
+   THE DECK
+   ===================================================================== */
+const CARDS = [
+
+{ cat:"Number sense", title:"Negative × Negative", hook:"Two negatives making a positive feels backwards.",
+  visual:"negs",
+  build(){ const a=R(2,7), b=R(2,7), ans=a*b;
+    return {
+      vdata:{ans},
+      trick:[
+        "A negative sign means “flip direction.”",
+        "So #−×−# is flipping a flip — you turn around twice and face forward again.",
+        `Money version: cancelling a #${a}# debt #${b}# times is a #+${ans}# gain.`
+      ],
+      q:`#−${a} × −${b}# = ?`,
+      ...mc(ans, [-ans, a+b, -(a+b)]),
+      explain:`Two flips face you forward, so the result is positive: #${ans}#.`
+    };}},
+
+{ cat:"Arithmetic trick", title:"Multiply by 11", hook:"Big times tables feel like endless memorising.",
+  build(){ let a=R(1,9), b=R(0,9); const n=a*10+b, ans=n*11, mid=a+b;
+    const trick = mid<10
+      ? [ `Pull the two digits of #${n}# apart: #${a} _ ${b}#.`,
+          `Add them and drop the total in the middle: #${a}+${b}=${mid}#.`,
+          `So #11 × ${n} = ${a}${mid}${b}# → #${ans}#.` ]
+      : [ `Pull the digits apart: #${a} _ ${b}#.`,
+          `Middle is #${a}+${b}=${mid}# — that's 10+, so carry the 1.`,
+          `Bump the front: #${a}+1=${a+1}#, keep #${mid-10}# in the middle → #${ans}#.` ];
+    return { trick, q:`#11 × ${n}# = ?`,
+      ...mc(ans, [n+11, ans+9, ans-10, a*100+b]),
+      explain:`The middle digit is just the two outer digits added. #11 × ${n} = ${ans}#.` };}},
+
+{ cat:"Percentages", title:"The percent flip", hook:"Some percentages look impossible in your head.",
+  build(){ const set=pick([
+      {x:4,y:25,e:"a quarter of 4"},{x:8,y:50,e:"half of 8"},{x:6,y:50,e:"half of 6"},
+      {x:18,y:50,e:"half of 18"},{x:5,y:80,e:"80 split into 20s, take one"},
+      {x:12,y:25,e:"a quarter of 12"},{x:2,y:150,e:"1% of 150 is 1.5, doubled"},
+      {x:20,y:35,e:"a fifth of 35"},{x:16,y:25,e:"a quarter of 16"}]);
+    const ans=set.x*set.y/100;
+    return {
+      trick:[
+        "#x% of y# always equals #y% of x# — multiplying doesn't care about order.",
+        `So flip the hard #${set.x}% of ${set.y}# into the easy #${set.y}% of ${set.x}#.`,
+        `That's just ${set.e} → #${ans}#.`
+      ],
+      q:`#${set.x}% of ${set.y}# = ?`,
+      ...mc(ans, [ans+1, ans*2, Math.max(0,ans-1), set.x]),
+      explain:`Flipping makes it obvious: #${set.y}% of ${set.x} = ${ans}#.` };}},
+
+{ cat:"Number sense", title:"Square anything ending in 5", hook:"Squaring two-digit numbers in your head seems impossible.",
+  visual:"sq5",
+  build(){ const d=R(1,9), n=d*10+5, ans=n*n, t=d*(d+1);
+    return { vdata:{d,n,t,ans},
+      trick:[
+        `To square #${n}#, look only at the front digit #${d}#.`,
+        `Multiply it by the next number up: #${d}×${d+1}=${t}#.`,
+        `Glue #25# on the end: #${n}² = ${t}25# → #${ans}#.`
+      ],
+      q:`#${n}²# = ?`,
+      ...mc(ans, [d*d*100+25, ans-100, t*100+50, ans+50]),
+      explain:`Front digit times the next, then 25: #${t}|25 = ${ans}#. Try #${n+10}²# next time!` };}},
+
+{ cat:"Money math", title:"Tip in your head", hook:"Working out the tip at dinner is stressful.",
+  build(){ const bill=R(12,48)*2; const ten=bill/10, ans=bill*0.15;
+    return {
+      trick:[
+        `Find #10%# first — just move the dot one step left: #${money(ten)}#.`,
+        `Want #15%#? Add half of that ten percent.`,
+        `#${money(ten)} + ${money(ten/2)} = ${money(ans)}#. (For #20%#, just double the ten.)`
+      ],
+      q:`A #${money(bill)}# bill — what's a #15%# tip?`,
+      ...mc(money(ans), [money(ten), money(bill*0.20), money(bill*0.05), money(ans+1)]),
+      explain:`Ten percent plus half of it = fifteen percent → #${money(ans)}#.` };}},
+
+{ cat:"Exponents", title:"Why anything⁰ = 1", hook:"Raising to the power zero giving 1 feels made-up.",
+  build(){ const b=R(2,6);
+    return {
+      trick:[
+        "Each step down in power divides by the base.",
+        `#${b}³=${b**3}#, #${b}²=${b*b}#, #${b}¹=${b}# — every step is #÷${b}#.`,
+        `One more step: #${b} ÷ ${b} = 1#, so #${b}⁰# has to be #1#.`
+      ],
+      q:`#${b}⁰# = ?`,
+      ...mc(1, [0, b, "undefined"]),
+      explain:`The pattern forces it: stepping down once more from #${b}¹# lands on #1#.` };}},
+
+{ cat:"Fractions", title:"Dividing by a fraction", hook:"“Keep, change, flip” works — but nobody says why.",
+  build(){ const n=R(2,6), k=pick([2,3,4]), ans=n*k;
+    return {
+      trick:[
+        "Dividing asks: how many of these fit inside?",
+        `Each whole holds #${k}# pieces of size #1/${k}#.`,
+        `So #${n} ÷ 1/${k}# counts them all: #${n} × ${k} = ${ans}#. Flipping = counting the pieces.`
+      ],
+      q:`#${n} ÷ 1/${k}# = ?`,
+      ...mc(ans, [n+k, n, k, ans-k]),
+      explain:`#${n}# wholes, each holding #${k}# pieces → #${ans}# pieces. That's why you flip and multiply.` };}},
+
+{ cat:"Logarithms", title:"What a log really asks", hook:"“Logarithm” sounds like advanced wizardry.",
+  build(){ const e=R(2,6), val=2**e, chain=Array(e).fill(2).join('×');
+    return {
+      trick:[
+        "A log just asks one thing: how many times do I multiply the base to reach this number?",
+        `#2# multiplied #${e}# times: #${chain} = ${val}#.`,
+        `So #log₂(${val}) = ${e}#. The log is simply the hidden exponent.`
+      ],
+      q:`#log₂(${val})# = ?`,
+      ...mc(e, [val/2, e+1, val]),
+      explain:`Count the multiplies: #${e}#. A log is the exponent in disguise.` };}},
+
+{ cat:"Probability", title:"The “it's due” trap", hook:"After a streak of heads, tails feels overdue.",
+  build(){ const k=R(3,6);
+    return {
+      trick:[
+        "A coin has no memory — it can't feel a streak.",
+        "Every flip is a fresh, independent 50/50.",
+        `Those #${k}# heads change nothing. “Due” is a feeling, not a force.`
+      ],
+      q:`A fair coin lands heads #${k}# times in a row. Chance the next flip is heads?`,
+      ...mc("50%", ["less than 50%","more than 50%","almost 0%"]),
+      explain:`Still #50%#. Past flips never lean on the next one — that's the gambler's fallacy.` };}},
+
+{ cat:"Geometry", title:"Where Pythagoras comes from", hook:"#a²+b²=c²# — but where do the squares come from?",
+  visual:"pyth",
+  build(){ const t=pick([[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15]]); const[a,b,c]=t;
+    return { vdata:{a,b,c},
+      trick:[
+        "Draw a real square on each side of the right triangle.",
+        `The two small squares' areas literally add to the big one: #${a}² + ${b}² = ${a*a}+${b*b} = ${c*c}#.`,
+        `The long side is then #√${c*c} = ${c}#. It's about area, not just length.`
+      ],
+      q:`Right triangle, legs #${a}# and #${b}#. The long side is?`,
+      ...mc(c, [a+b, c+1, c-1]),
+      explain:`Add the leg-squares, then square-root: #√(${a*a}+${b*b}) = ${c}#. (Not #${a}+${b}# — that's the classic trap.)` };}},
+
+{ cat:"Number sense", title:"Why you can't ÷ by zero", hook:"Dividing by zero being “banned” seems arbitrary.",
+  build(){ const n=R(2,9);
+    return {
+      trick:[
+        `Division asks: how many zeros add up to make #${n}#?`,
+        "Zero + zero + zero… stays zero forever — you never reach it.",
+        "No number works, so we call it undefined (not infinity)."
+      ],
+      q:`#${n} ÷ 0# = ?`,
+      ...mc("undefined", ["0","∞",String(n)]),
+      explain:`Nothing times zero gives #${n}#, so there's no answer — it's undefined.` };}},
+
+{ cat:"Statistics", title:"When the average lies", hook:"The “average” can hide the real story.",
+  build(){ const a=R(28,42),b=R(30,46),c=R(35,50),big=R(400,900);
+    const list=[a,b,c,big]; const mean=Math.round(list.reduce((s,x)=>s+x,0)/4);
+    const med=Math.round((b+c)/2); // middle-ish of sorted small set
+    return {
+      trick:[
+        "The mean adds everything and shares it equally — one giant value drags it way up.",
+        `Here four people earn #${a}k, ${b}k, ${c}k# and #${big}k#. Mean ≈ #${mean}k# — but almost nobody earns that.`,
+        "The median (the middle value) shrugs off the outlier and tells the truer 'typical'."
+      ],
+      q:"When a few values are huge (like incomes), which better shows the typical person?",
+      ...mc("the median", ["the mean","they're equal","neither works"]),
+      explain:`The mean got yanked up to #${mean}k# by one big earner. The median ignores extremes — use it for the 'typical'.` };}},
+
+{ cat:"Money math", title:"The Rule of 72", hook:"How long until savings double? Sounds like hard finance.",
+  build(){ const rate=pick([2,3,4,6,8,9,12]); const yrs=72/rate;
+    return {
+      trick:[
+        "Want to know when money doubles? Divide 72 by the yearly rate.",
+        `At #${rate}%# a year: #72 ÷ ${rate} = ${yrs}# years.`,
+        "One little division — and it's surprisingly accurate."
+      ],
+      q:`Savings grow #${rate}%# a year. Roughly how many years to double?`,
+      ...mc(yrs+" years", [(yrs*2)+" years", rate+" years", (72-rate)+" years"]),
+      explain:`#72 ÷ ${rate} = ${yrs}# years to double. Works for any rate.` };}},
+
+{ cat:"Counting", title:"Does the order matter?", hook:"Permutations vs combinations — which formula, when?",
+  build(){ const sc=pick([
+      {s:"3 runners win gold, silver, bronze", o:true},
+      {s:"pick 3 toppings for one pizza", o:false},
+      {s:"choose a 4-digit PIN", o:true},
+      {s:"pick 2 friends to invite", o:false},
+      {s:"seat 5 people in a row", o:true},
+      {s:"choose 5 lottery numbers", o:false}]);
+    return {
+      trick:[
+        "Ask yourself one question: if I rearrange them, is it a different result?",
+        "Gold/silver/bronze changes if you swap them → order matters (a permutation).",
+        "Pizza toppings make the same pizza either way → order doesn't (a combination)."
+      ],
+      q:`Does order matter here? — “${sc.s}”`,
+      ...mc(sc.o?"Yes, order matters":"No, order doesn't", [sc.o?"No, order doesn't":"Yes, order matters","It depends on the count","Order never matters"]),
+      explain: sc.o
+        ? "Rearranging makes a different outcome, so order matters — that's a permutation."
+        : "Rearranging gives the same group, so order doesn't matter — that's a combination." };}},
+
+{ cat:"Algebra", title:"Multiplying into brackets", hook:"#a(b+c)=ab+ac# looks like an abstract rule.",
+  visual:"distrib",
+  build(){ const a=R(3,8), b=R(2,8), c=R(2,8), ans=a*(b+c);
+    return { vdata:{a,b,c},
+      trick:[
+        `Picture a rectangle #${a}# tall and #(${b}+${c})# wide.`,
+        `Slice it into two: one #${a}×${b}# and one #${a}×${c}#.`,
+        `Same total area: #${a*b} + ${a*c} = ${ans}#. That's all “distributing” is.`
+      ],
+      q:`#${a} × (${b}+${c})# = ?`,
+      ...mc(ans, [a*b+c, a+b*c, a*b*c]),
+      explain:`Multiply into each part: #${a}×${b} + ${a}×${c} = ${ans}#.` };}},
+
+{ cat:"Algebra", title:"Solving for x", hook:"Finding x can feel like blind guessing.",
+  build(){ const mult=Math.random()<.5;
+    if(mult){ const c=R(2,6), x=R(2,9), b=c*x;
+      return { trick:[
+          "An equation is a balance scale — both sides stay equal.",
+          `#${c}# is multiplied by #x#, so undo it by dividing both sides by #${c}#.`,
+          `#x = ${b} ÷ ${c} = ${x}#.` ],
+        q:`Solve: #${c}x = ${b}#`,
+        ...mc(x, [b, b-c, x+1]),
+        explain:`Do the opposite move: #÷${c}# on both sides gives #x = ${x}#.` }; }
+    const a=R(2,12), x=R(2,12), b=x+a;
+    return { trick:[
+        "An equation is a balance scale — keep both sides equal.",
+        `#x# has #+${a}# stuck to it, so subtract #${a}# from both sides.`,
+        `#x = ${b} − ${a} = ${x}#.` ],
+      q:`Solve: #x + ${a} = ${b}#`,
+      ...mc(x, [b, b+a, x+1]),
+      explain:`Undo #+${a}# with #−${a}# on both sides → #x = ${x}#.` };}},
+
+{ cat:"Geometry", title:"What π actually is", hook:"π = 3.14… but 3.14 of what?",
+  visual:"pi",
+  build(){ const d=R(2,9); const around=3.14159*d;
+    return { vdata:{d},
+      trick:[
+        "Measure straight across a circle (the diameter), then all the way around.",
+        `The way-around is always about #3.14# times the way-across — for every circle.`,
+        `That fixed ratio is π. So around ≈ #3.14 × ${d} ≈ ${around.toFixed(1)}#.`
+      ],
+      q:`A circle is #${d}# across. About how far is it around?`,
+      ...mc(around.toFixed(1), [(2*d).toFixed(1), (around/2).toFixed(1), (d*d).toFixed(1)]),
+      explain:`Around ≈ #π × diameter ≈ 3.14 × ${d} ≈ ${around.toFixed(1)}#.` };}},
+
+{ cat:"Exponents", title:"Negative powers", hook:"What could a negative exponent even mean?",
+  build(){ const n=R(2,5), val=2**n;
+    return {
+      trick:[
+        "Stepping the power down keeps dividing by the base — just keep going past zero.",
+        "#2¹=2#, #2⁰=1#, #2⁻¹=1/2#, #2⁻²=1/4# …",
+        `A negative power simply means “flip it under 1”: #2⁻${n} = 1/2${'⁰¹²³⁴⁵⁶⁷⁸⁹'[n]} = 1/${val}#.`
+      ],
+      q:`#2⁻${n}# = ?`,
+      ...mc("1/"+val, ["-"+val, "1/"+(2*n), "-1/"+val]),
+      explain:`Negative power = reciprocal: #2⁻${n} = 1/${val}#.` };}},
+
+{ cat:"Number sense", title:"Does 0.999… = 1?", hook:"Nines forever can't really equal 1… can they?",
+  build(){
+    return {
+      trick:[
+        "Let #x = 0.999…# (nines forever).",
+        "Then #10x = 9.999…#. Subtract the first line: #10x − x = 9#.",
+        "So #9x = 9#, meaning #x = 1#. There's no gap to squeeze between them."
+      ],
+      q:"Does #0.999…# (nines forever) equal 1?",
+      ...mc("Yes — exactly 1", ["No, a tiny bit less","Only when rounded","It's undefined"]),
+      explain:"They're the same number in two outfits — the algebra leaves no gap." };}},
+
+];
+
+/* =====================================================================
+   VISUALS — small procedural drawings for some cards
+   ===================================================================== */
+function setupCanvas(cv, w, h){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  cv.width = w*dpr; cv.height = h*dpr;
+  cv.style.width = w+'px'; cv.style.height = h+'px';
+  const c = cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
+  return c;
+}
+const VIZ = {
+  negs(cv,d){ const w=340,h=120,c=setupCanvas(cv,w,h);
+    c.font='13px ui-monospace,monospace'; c.textAlign='center';
+    const lab=["facing →","turn: facing ←","turn: facing →"];
+    const col=["#5d6b7d","#e8607a","#15c39a"];
+    for(let i=0;i<3;i++){ const x=60+i*110, y=58;
+      c.strokeStyle=col[i]; c.fillStyle=col[i]; c.lineWidth=3;
+      c.beginPath(); c.moveTo(x-26,y); c.lineTo(x+26,y); c.stroke();
+      const dir = i===1?-1:1;
+      c.beginPath(); c.moveTo(x+26*dir,y); c.lineTo(x+(26-10)*dir,y-7); c.lineTo(x+(26-10)*dir,y+7); c.closePath(); c.fill();
+      c.fillText(lab[i], x, y+24);
+    }
+    c.fillStyle='#1d2733'; c.font='bold 14px ui-monospace,monospace';
+    c.fillText("two flips → land on +"+d.ans, w/2, 22);
+  },
+  sq5(cv,d){ const w=300,h=140,c=setupCanvas(cv,w,h);
+    const S=96, x=(w-S)/2-30, y=20;
+    c.strokeStyle='#f0c64b'; c.fillStyle='#fff7df'; c.lineWidth=2;
+    c.fillRect(x,y,S,S); c.strokeRect(x,y,S,S);
+    c.fillStyle='#9a6a00'; c.font='bold 13px ui-monospace,monospace'; c.textAlign='center';
+    c.fillText(d.n, x+S/2, y-6); c.fillText(d.n, x-14, y+S/2);
+    c.fillStyle='#1d2733'; c.font='bold 16px ui-monospace,monospace'; c.textAlign='left';
+    c.fillText("area = "+d.ans, x+S+18, y+S/2-6);
+    c.fillStyle='#5d6b7d'; c.font='12px ui-monospace,monospace';
+    c.fillText("= "+d.d+"×"+(d.d+1)+" then 25", x+S+18, y+S/2+14);
+    c.fillText("= "+d.t+"|25", x+S+18, y+S/2+30);
+  },
+  pyth(cv,d){ const w=340,h=240,c=setupCanvas(cv,w,h);
+    const sc=Math.min(120/d.c, 14); const a=d.a*sc, b=d.b*sc;
+    const ox=140, oy=150; // right-angle corner
+    // triangle vertices
+    const P=[ox,oy], Pa=[ox,oy-a], Pb=[ox+b,oy];
+    // square on vertical leg a (to the left)
+    c.fillStyle='rgba(255,107,74,.16)'; c.strokeStyle='#ff6b4a'; c.lineWidth=1.5;
+    c.fillRect(ox-a,oy-a,a,a); c.strokeRect(ox-a,oy-a,a,a);
+    // square on horizontal leg b (below)
+    c.fillStyle='rgba(21,195,154,.16)'; c.strokeStyle='#15c39a';
+    c.fillRect(ox,oy,b,b); c.strokeRect(ox,oy,b,b);
+    // square on hypotenuse (outward)
+    const hx=Pa[0]-Pb[0], hy=Pa[1]-Pb[1]; // along hyp
+    const nx=hy, ny=-hx; const L=Math.hypot(hx,hy);
+    const ux=nx/L, uy=ny/L;
+    c.fillStyle='rgba(245,196,81,.18)'; c.strokeStyle='#e0a92a';
+    c.beginPath(); c.moveTo(Pb[0],Pb[1]); c.lineTo(Pa[0],Pa[1]);
+    c.lineTo(Pa[0]+ux*L,Pa[1]+uy*L); c.lineTo(Pb[0]+ux*L,Pb[1]+uy*L); c.closePath(); c.fill(); c.stroke();
+    // triangle
+    c.fillStyle='#1d2733'; c.beginPath(); c.moveTo(...P); c.lineTo(...Pa); c.lineTo(...Pb); c.closePath();
+    c.globalAlpha=.85; c.fill(); c.globalAlpha=1;
+    // labels
+    c.font='bold 12px ui-monospace,monospace'; c.textAlign='center';
+    c.fillStyle='#ff6b4a'; c.fillText(d.a*d.a, ox-a/2, oy-a/2);
+    c.fillStyle='#0e8c6c'; c.fillText(d.b*d.b, ox+b/2, oy+b/2+4);
+    c.fillStyle='#a9842a'; c.fillText(d.c*d.c, (Pa[0]+Pb[0])/2+ux*L/2, (Pa[1]+Pb[1])/2+uy*L/2);
+  },
+  distrib(cv,d){ const w=320,h=150,c=setupCanvas(cv,w,h);
+    const unit=Math.min(26, 230/(d.b+d.c)); const H=d.a*Math.min(18,90/d.a);
+    const W1=d.b*unit, W2=d.c*unit, x=(w-(W1+W2))/2, y=24;
+    c.fillStyle='rgba(255,107,74,.18)'; c.strokeStyle='#ff6b4a'; c.lineWidth=1.5;
+    c.fillRect(x,y,W1,H); c.strokeRect(x,y,W1,H);
+    c.fillStyle='rgba(21,195,154,.18)'; c.strokeStyle='#15c39a';
+    c.fillRect(x+W1,y,W2,H); c.strokeRect(x+W1,y,W2,H);
+    c.font='bold 13px ui-monospace,monospace'; c.textAlign='center'; c.fillStyle='#1d2733';
+    c.fillText(d.a+"×"+d.b+"="+(d.a*d.b), x+W1/2, y+H/2+4);
+    c.fillText(d.a+"×"+d.c+"="+(d.a*d.c), x+W1+W2/2, y+H/2+4);
+    c.fillStyle='#5d6b7d'; c.font='12px ui-monospace,monospace';
+    c.fillText(d.a+" tall", x-30, y+H/2);
+    c.fillText("width "+d.b+" + "+d.c, x+(W1+W2)/2, y+H+20);
+  },
+  pi(cv,d){ const w=300,h=180,c=setupCanvas(cv,w,h);
+    const cx=w/2, cy=h/2+6, r=58;
+    c.strokeStyle='#5d6b7d'; c.lineWidth=2; c.setLineDash([5,5]);
+    c.beginPath(); c.arc(cx,cy,r,0,6.28); c.stroke(); c.setLineDash([]);
+    c.strokeStyle='#ff6b4a'; c.beginPath(); c.moveTo(cx-r,cy); c.lineTo(cx+r,cy); c.stroke();
+    c.fillStyle='#ff6b4a'; c.font='bold 12px ui-monospace,monospace'; c.textAlign='center';
+    c.fillText("across = "+d.d, cx, cy-8);
+    c.fillStyle='#0e6b53'; c.fillText("around ≈ 3.14 × "+d.d, cx, cy+r+24);
+    c.fillStyle='#a9842a'; c.font='bold 13px ui-monospace,monospace';
+    c.fillText("ratio = π", cx, 22);
+  }
+};
+
+/* =====================================================================
+   GAME ENGINE
+   ===================================================================== */
+const root = document.getElementById('root');
+const elStreak = document.getElementById('streak');
+const elLearned = document.getElementById('learned');
+let streak=0, learned=0, recent=[];
+try{ learned=parseInt(localStorage.getItem('aha_learned')||'0',10)||0; }catch(e){}
+elLearned.textContent = learned;
+
+function nextCard(){
+  // pick a card not seen in the last few rounds
+  let card;
+  do { card = pick(CARDS); } while(recent.includes(card.title) && CARDS.length>6);
+  recent.push(card.title); if(recent.length>5) recent.shift();
+  render(card, card.build());
+}
+
+function render(card, r){
+  root.innerHTML='';
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="eyebrow">${card.cat}</div>
+    <h2>${fmt(card.title)}</h2>
+    <p class="hook">${fmt(card.hook)}</p>
+    <div class="trick">
+      <span class="tlab">The trick</span>
+      ${r.trick.map(t=>`<p>${fmt(t)}</p>`).join('')}
+      ${card.visual?'<canvas class="viz"></canvas>':''}
+    </div>
+    <div class="turn">Your turn</div>
+    <p class="q">${fmt(r.q)}</p>
+    <div class="choices"></div>
+    <div class="explain"></div>
+    <button class="next">Next trick →</button>
+  `;
+  root.appendChild(wrap);
+
+  if(card.visual && VIZ[card.visual]){
+    try{ VIZ[card.visual](wrap.querySelector('.viz'), r.vdata||{}); }catch(e){ wrap.querySelector('.viz').remove(); }
+  }
+
+  const choicesEl = wrap.querySelector('.choices');
+  const explainEl = wrap.querySelector('.explain');
+  const nextEl = wrap.querySelector('.next');
+  const keys = ['1','2','3','4'];
+  let answered=false;
+
+  r.choices.forEach((ch,i)=>{
+    const b=document.createElement('button');
+    b.className='choice';
+    b.innerHTML=`<span class="key">${keys[i]}</span><span>${fmt(ch)}</span>`;
+    b.addEventListener('click',()=>choose(i,b));
+    choicesEl.appendChild(b);
+  });
+
+  function choose(i, btn){
+    if(answered) return; answered=true;
+    const buttons=[...choicesEl.children];
+    buttons.forEach(b=>b.disabled=true);
+    const correct = i===r.answer;
+    buttons[r.answer].classList.add('correct');
+    if(!correct) btn.classList.add('wrong');
+
+    // scoring
+    learned++; elLearned.textContent=learned;
+    try{ localStorage.setItem('aha_learned',String(learned)); }catch(e){}
+    if(correct){ streak++; burst(); } else { streak=0; }
+    elStreak.textContent=streak;
+
+    explainEl.className='explain show '+(correct?'good':'miss');
+    explainEl.innerHTML=`<div class="eh">${correct?'✓ Nice — exactly right':'Here is the idea'}</div>${fmt(r.explain)}`;
+    nextEl.classList.add('show');
+    nextEl.focus();
+  }
+
+  nextEl.addEventListener('click', nextCard);
+
+  // keyboard
+  function onKey(e){
+    if(!answered && keys.includes(e.key)){ const idx=+e.key-1; if(idx<r.choices.length){ choose(idx, choicesEl.children[idx]); } }
+    else if(answered && (e.key==='Enter'||e.key===' ')){ e.preventDefault(); window.removeEventListener('keydown',onKey); nextCard(); }
+  }
+  window.removeEventListener('keydown', render._k||(()=>{}));
+  render._k = onKey;
+  window.addEventListener('keydown', onKey);
+}
+
+/* ---- confetti spark on a correct answer ---- */
+const fx = document.getElementById('fx');
+const fxc = fx.getContext('2d');
+let confetti=[], fxRunning=false;
+function sizeFx(){ const d=Math.min(window.devicePixelRatio||1,2); fx.width=innerWidth*d; fx.height=innerHeight*d; fxc.setTransform(d,0,0,d,0,0); }
+sizeFx(); window.addEventListener('resize', ()=>{ sizeFx(); });
+function burst(){
+  const cols=['#ff6b4a','#15c39a','#f5c451','#e8607a','#5aa9e6'];
+  const cx=innerWidth/2, cy=innerHeight*0.34;
+  for(let i=0;i<46;i++){ const a=Math.random()*6.28, sp=2+Math.random()*6;
+    confetti.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-3,g:0.12,life:1,col:pick(cols),r:2+Math.random()*3,rot:Math.random()*6,vr:(Math.random()-.5)*.4}); }
+  if(!fxRunning){ fxRunning=true; requestAnimationFrame(fxLoop); }
+}
+function fxLoop(){
+  fxc.clearRect(0,0,innerWidth,innerHeight);
+  for(const p of confetti){ p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life-=0.012; }
+  confetti=confetti.filter(p=>p.life>0 && p.y<innerHeight+30);
+  for(const p of confetti){ fxc.save(); fxc.globalAlpha=Math.max(0,p.life); fxc.translate(p.x,p.y); fxc.rotate(p.rot);
+    fxc.fillStyle=p.col; fxc.fillRect(-p.r,-p.r,p.r*2,p.r*2.4); fxc.restore(); }
+  if(confetti.length) requestAnimationFrame(fxLoop); else fxRunning=false;
+}
+
+// go
+nextCard();
+</script>
+</body>
+</html>
