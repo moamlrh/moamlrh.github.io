@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cognitive Catalyst — Brain Training Suite</title>
+    <style>
+        :root {
+            --bg: #08080f;
+            --surface: #111118;
+            --text: #d8dae0;
+            --text-dim: #707080;
+            --cyan: #00e0ff;
+            --gold: #ffc840;
+            --green: #40e890;
+            --red: #ff4060;
+            --magenta: #c070ff;
+            --white: #f0f0f5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            overflow: hidden;
+            font-family: 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            height: 100dvh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="c"></canvas>
+    <script>
+        (function() {
+            const canvas = document.getElementById('c');
+            const ctx = canvas.getContext('2d');
+            let W, H, scale;
+
+            function resize() {
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                W = window.innerWidth;
+                H = window.innerHeight;
+                canvas.width = W * dpr;
+                canvas.height = H * dpr;
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(dpr, dpr);
+                scale = Math.min(W, H) / 800;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            // ────────────────────────────────────────
+            // AUDIO (Procedural)
+            // ────────────────────────────────────────
+            let audioCtx = null;
+
+            function getAC() {
+                if (!audioCtx) audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+                return audioCtx;
+            }
+
+            function beep(f, d, t = 'sine', v = 0.06) {
+                try {
+                    const a = getAC();
+                    const o = a.createOscillator();
+                    const g = a.createGain();
+                    o.type = t;
+                    o.frequency.setValueAtTime(f, a.currentTime);
+                    g.gain.setValueAtTime(v, a.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + d);
+                    o.connect(g);
+                    g.connect(a.destination);
+                    o.start(a.currentTime);
+                    o.stop(a.currentTime + d);
+                } catch (e) {}
+            }
+
+            function sfxCorrect() { beep(520, 0.08, 'sine', 0.07);
+                beep(780, 0.12, 'triangle', 0.05);
+                beep(1040, 0.15, 'sine', 0.04); }
+
+            function sfxWrong() { beep(120, 0.2, 'sawtooth', 0.05);
+                beep(80, 0.3, 'triangle', 0.04); }
+
+            function sfxClick() { beep(340, 0.06, 'sine', 0.04); }
+
+            function sfxCombo() { beep(660, 0.06, 'sine', 0.05);
+                beep(880, 0.1, 'triangle', 0.06); }
+
+            function sfxLevelUp() { beep(440, 0.08, 'sine', 0.05);
+                beep(660, 0.1, 'triangle', 0.05);
+                beep(880, 0.15, 'sine', 0.06); }
+
+            // ────────────────────────────────────────
+            // PARTICLE SYSTEM
+            // ────────────────────────────────────────
+            class Particle {
+                constructor(x, y, vx, vy, color, life = 35, size = 3) {
+                    this.x = x;
+                    this.y = y;
+                    this.vx = vx;
+                    this.vy = vy;
+                    this.color = color;
+                    this.life = life;
+                    this.max = life;
+                    this.size = size;
+                }
+                update() { this.x += this.vx;
+                    this.y += this.vy;
+                    this.vy += 0.06;
+                    this.life--; }
+                get alive() { return this.life > 0; }
+                get alpha() { return Math.max(0, this.life / this.max); }
+                draw(c) {
+                    const a = this.alpha;
+                    c.save();
+                    c.globalAlpha = a;
+                    c.fillStyle = this.color;
+                    c.shadowColor = this.color;
+                    c.shadowBlur = this.size * a * 4;
+                    c.beginPath();
+                    c.arc(this.x, this.y, this.size * (0.4 + 0.6 * a), 0, Math.PI * 2);
+                    c.fill();
+                    c.restore();
+                }
+            }
+            const particles = [];
+
+            function spawnBurst(x, y, count, color, spread = 4, life = 30) {
+                for (let i = 0; i < count; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const s = Math.random() * spread;
+                    particles.push(new Particle(x, y, Math.cos(a) * s, Math.sin(a) * s - 2, color, life + Math.random() * 25,
+                        1.5 + Math.random() * 4));
+                }
+            }
+
+            // ────────────────────────────────────────
+            // SCREEN SHAKE
+            // ────────────────────────────────────────
+            let shakeX = 0,
+                shakeY = 0,
+                shakeDur = 0,
+                shakeInt = 0;
+
+            function triggerShake(intensity = 6, dur = 10) {
+                shakeInt = Math.max(shakeInt, intensity);
+                shakeDur = Math.max(shakeDur, dur);
+            }
+
+            function updateShake() {
+                if (shakeDur > 0) {
+                    shakeX = (Math.random() - 0.5) * shakeInt * 2;
+                    shakeY = (Math.random() - 0.5) * shakeInt * 2;
+                    shakeDur--;
+                    shakeInt *= 0.82;
+                } else { shakeX = 0;
+                    shakeY = 0;
+                    shakeInt = 0; }
+            }
+
+            // ────────────────────────────────────────
+            // STATE MACHINE
+            // ────────────────────────────────────────
+            const STATE = { START: 'start', MENU: 'menu', PLAYING: 'playing', TRANSITION: 'transition',
+            SUMMARY: 'summary' };
+            let gameState = STATE.START;
+            let currentMode = null; // 'pattern' | 'spatial' | 'memory'
+            let modeIndex = 0;
+            const modeOrder = ['pattern', 'spatial', 'memory'];
+            let roundsCompleted = 0;
+            const TOTAL_ROUNDS = 9; // 3 per mode
+
+            // ────────────────────────────────────────
+            // PLAYER STATS
+            // ────────────────────────────────────────
+            let xp = 0;
+            let level = 1;
+            let combo = 0;
+            let maxCombo = 0;
+            let totalCorrect = 0;
+            let totalWrong = 0;
+            let recentResults = []; // last 3: true=correct, false=wrong
+            let statsPerCategory = {
+                logic: { correct: 0, total: 0, bestStreak: 0 },
+                spatial: { correct: 0, total: 0, bestStreak: 0 },
+                memory: { correct: 0, total: 0, bestStreak: 0 },
+                speed: { totalTime: 0, count: 0, fastest: Infinity },
+                focus: { maxCombo: 0, totalCombos: 0 },
+            };
+            let roundStartTime = 0;
+            let currentDifficulty = 1; // 1-5
+
+            // ────────────────────────────────────────
+            // TIMER
+            // ────────────────────────────────────────
+            let timerMax = 10; // seconds
+            let timerRemaining = timerMax;
+            let timerActive = false;
+
+            function resetTimer() {
+                timerMax = Math.max(4, 11 - currentDifficulty * 1.2);
+                timerRemaining = timerMax;
+                timerActive = true;
+                roundStartTime = performance.now();
+            }
+
+            function updateTimer(dt) {
+                if (!timerActive) return;
+                timerRemaining -= dt;
+                if (timerRemaining <= 0) {
+                    timerRemaining = 0;
+                    timerActive = false;
+                    handleTimeout();
+                }
+            }
+
+            function handleTimeout() {
+                if (gameState !== STATE.PLAYING) return;
+                totalWrong++;
+                combo = 0;
+                recentResults.push(false);
+                if (recentResults.length > 3) recentResults.shift();
+                statsPerCategory.speed.totalTime += timerMax;
+                statsPerCategory.speed.count++;
+                sfxWrong();
+                spawnBurst(W / 2, H / 2, 20, '#ff4060', 3, 25);
+                triggerShake(4, 8);
+                goToTransition(false);
+            }
+
+            // ────────────────────────────────────────
+            // PUZZLE DATA (current puzzle state)
+            // ────────────────────────────────────────
+            let puzzleData = null; // mode-specific data for current round
+
+            // ────────────────────────────────────────
+            // PATTERN MATRIX GENERATOR
+            // ────────────────────────────────────────
+            const SHAPES = ['circle', 'square', 'triangle', 'diamond', 'hexagon', 'cross'];
+            const FILLS = ['empty', 'hatched', 'filled'];
+            const SIZES = ['small', 'medium', 'large'];
+            const ROTATIONS = [0, 45, 90, 135, 180, 225, 270, 315];
+
+            function generatePatternMatrix(difficulty) {
+                // Choose pattern type
+                const patternTypes = ['rowShape_colFill', 'rowFill_colShape', 'rowSize_colShape', 'rotationGrid',
+                    'diagonalSymmetry'
+                ];
+                const pType = patternTypes[Math.floor(Math.random() * Math.min(difficulty, patternTypes.length))];
+
+                const grid = []; // 3x3, each cell: {shape, fill, size, rotation}
+                let answerCell = { row: Math.floor(Math.random() * 3), col: Math.floor(Math.random() * 3) };
+                let correctAnswer = null;
+
+                // Generate based on pattern type
+                const shapeSet = SHAPES.slice(0, 3 + Math.floor(difficulty / 2));
+                const fillSet = FILLS.slice(0, Math.min(3, 2 + Math.floor(difficulty / 3)));
+                const sizeSet = SIZES.slice(0, Math.min(3, 2 + Math.floor(difficulty / 3)));
+
+                switch (pType) {
+                    case 'rowShape_colFill':
+                        const rowShapes = [shapeSet[0], shapeSet[1], shapeSet[2] || shapeSet[0]];
+                        const colFills = [fillSet[0], fillSet[1], fillSet[2] || fillSet[0]];
+                        for (let r = 0; r < 3; r++) {
+                            grid[r] = [];
+                            for (let c = 0; c < 3; c++) {
+                                grid[r][c] = { shape: rowShapes[r], fill: colFills[c], size: 'medium', rotation: 0 };
+                            }
+                        }
+                        correctAnswer = { ...grid[answerCell.row][answerCell.col] };
+                        break;
+                    case 'rowFill_colShape':
+                        const rf = [fillSet[0], fillSet[1], fillSet[2] || fillSet[0]];
+                        const cs = [shapeSet[0], shapeSet[1], shapeSet[2] || shapeSet[0]];
+                        for (let r = 0; r < 3; r++) {
+                            grid[r] = [];
+                            for (let c = 0; c < 3; c++) {
+                                grid[r][c] = { shape: cs[c], fill: rf[r], size: 'medium', rotation: 0 };
+                            }
+                        }
+                        correctAnswer = { ...grid[answerCell.row][answerCell.col] };
+                        break;
+                    case 'rowSize_colShape':
+                        const rs = [sizeSet[0], sizeSet[1], sizeSet[2] || sizeSet[0]];
+                        const cs2 = [shapeSet[0], shapeSet[1], shapeSet[2] || shapeSet[0]];
+                        for (let r = 0; r < 3; r++) {
+                            grid[r] = [];
+                            for (let c = 0; c < 3; c++) {
+                                grid[r][c] = { shape: cs2[c], fill: 'filled', size: rs[r], rotation: 0 };
+                            }
+                        }
+                        correctAnswer = { ...grid[answerCell.row][answerCell.col] };
+                        break;
+                    case 'rotationGrid':
+                        const baseShape = shapeSet[Math.floor(Math.random() * shapeSet.length)];
+                        const rots = [0, 90, 180, 270, 45, 135, 225, 315];
+                        const chosenRots = [rots[0], rots[1], rots[2]];
+                        for (let r = 0; r < 3; r++) {
+                            grid[r] = [];
+                            for (let c = 0; c < 3; c++) {
+                                grid[r][c] = { shape: baseShape, fill: 'filled', size: 'medium', rotation: chosenRots[(r +
+                                        c) % 3] };
+                            }
+                        }
+                        correctAnswer = { ...grid[answerCell.row][answerCell.col] };
+                        break;
+                    default: // diagonalSymmetry
+                        const dShape = shapeSet[Math.floor(Math.random() * shapeSet.length)];
+                        for (let r = 0; r < 3; r++) {
+                            grid[r] = [];
+                            for (let c = 0; c < 3; c++) {
+                                grid[r][c] = { shape: dShape, fill: r === c ? 'filled' : 'empty', size: r === c ? 'large' :
+                                        'small', rotation: 0 };
+                            }
+                        }
+                        correctAnswer = { ...grid[answerCell.row][answerCell.col] };
+                }
+
+                // Generate options (1 correct + 3-4 distractors)
+                const numOptions = 4 + Math.floor(difficulty / 3);
+                const options = [correctAnswer];
+                const allShapes = SHAPES.slice(0, 4 + Math.floor(difficulty / 2));
+                const allFills = FILLS.slice(0, Math.min(3, 3));
+                const allSizes = SIZES.slice(0, Math.min(3, 3));
+
+                while (options.length < numOptions) {
+                    const distractor = {
+                        shape: allShapes[Math.floor(Math.random() * allShapes.length)],
+                        fill: allFills[Math.floor(Math.random() * allFills.length)],
+                        size: allSizes[Math.floor(Math.random() * allSizes.length)],
+                        rotation: ROTATIONS[Math.floor(Math.random() * ROTATIONS.length)],
+                    };
+                    const isDuplicate = options.some(o =>
+                        o.shape === distractor.shape && o.fill === distractor.fill &&
+                        o.size === distractor.size && o.rotation === distractor.rotation
+                    );
+                    if (!isDuplicate) options.push(distractor);
+                }
+
+                // Shuffle options
+                for (let i = options.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [options[i], options[j]] = [options[j], options[i]];
+                }
+
+                return {
+                    mode: 'pattern',
+                    grid,
+                    answerCell,
+                    correctAnswer,
+                    options,
+                    patternType: pType,
+                };
+            }
+
+            // ────────────────────────────────────────
+            // SPATIAL ROTATION GENERATOR
+            // ────────────────────────────────────────
+            function create3DShape(type) {
+                // Define vertices for simple 3D shapes
+                const s = 1;
+                switch (type) {
+                    case 'cube':
+                        return [
+                            [-s, -s, -s],
+                            [s, -s, -s],
+                            [s, s, -s],
+                            [-s, s, -s],
+                            [-s, -s, s],
+                            [s, -s, s],
+                            [s, s, s],
+                            [-s, s, s]
+                        ];
+                    case 'lshape':
+                        return [
+                            [-s, -s, -s],
+                            [s, -s, -s],
+                            [s, s, -s],
+                            [-s, s, -s],
+                            [-s, -s, s],
+                            [-s, -s, 2 * s],
+                            [-s, s, 2 * s],
+                            [-s, s, s]
+                        ];
+                    case 'tshape':
+                        return [
+                            [-1.5 * s, -s, -s],
+                            [1.5 * s, -s, -s],
+                            [1.5 * s, s, -s],
+                            [-1.5 * s, s, -s],
+                            [-0.5 * s, -s, -s],
+                            [0.5 * s, -s, -s],
+                            [0.5 * s, -s, s],
+                            [-0.5 * s, -s, s],
+                            [-0.5 * s, s, -s],
+                            [0.5 * s, s, -s],
+                            [0.5 * s, s, s],
+                            [-0.5 * s, s, s],
+                        ];
+                    default: // pyramid
+                        return [
+                            [-s, -s, -s],
+                            [s, -s, -s],
+                            [s, -s, s],
+                            [-s, -s, s],
+                            [0, s, 0]
+                        ];
+                }
+            }
+
+            function getShapeEdges(type) {
+                switch (type) {
+                    case 'cube':
+                        return [
+                            [0, 1],
+                            [1, 2],
+                            [2, 3],
+                            [3, 0],
+                            [4, 5],
+                            [5, 6],
+                            [6, 7],
+                            [7, 4],
+                            [0, 4],
+                            [1, 5],
+                            [2, 6],
+                            [3, 7]
+                        ];
+                    case 'lshape':
+                        return [
+                            [0, 1],
+                            [1, 2],
+                            [2, 3],
+                            [3, 0],
+                            [0, 4],
+                            [4, 5],
+                            [5, 6],
+                            [6, 7],
+                            [7, 3],
+                            [1, 2],
+                            [4, 7]
+                        ];
+                    case 'tshape':
+                        return [
+                            [0, 1],
+                            [1, 2],
+                            [2, 3],
+                            [3, 0],
+                            [4, 5],
+                            [5, 6],
+                            [6, 7],
+                            [7, 4],
+                            [0, 4],
+                            [1, 5],
+                            [3, 7],
+                            [2, 6],
+                            [8, 9],
+                            [9, 10],
+                            [10, 11],
+                            [11, 8],
+                            [4, 8],
+                            [5, 9],
+                            [7, 11],
+                            [6, 10]
+                        ];
+                    default:
+                        return [
+                            [0, 1],
+                            [1, 2],
+                            [2, 3],
+                            [3, 0],
+                            [0, 4],
+                            [1, 4],
+                            [2, 4],
+                            [3, 4]
+                        ];
+                }
+            }
+
+            function rotateVertex(v, angleY, angleX) {
+                let [x, y, z] = v;
+                // Rotate Y
+                const cosY = Math.cos(angleY),
+                    sinY = Math.sin(angleY);
+                const x1 = x * cosY + z * sinY;
+                const z1 = -x * sinY + z * cosY;
+                // Rotate X
+                const cosX = Math.cos(angleX),
+                    sinX = Math.sin(angleX);
+                const y1 = y * cosX - z1 * sinX;
+                const z2 = y * sinX + z1 * cosX;
+                return [x1, y1, z2];
+            }
+
+            function projectVertex(v, distance = 6) {
+                const [x, y, z] = v;
+                const s = 1 / (z + distance);
+                return [x * s * 200, y * s * 200, z];
+            }
+
+            function generateSpatialRotation(difficulty) {
+                const shapeTypes = ['cube', 'lshape', 'tshape', 'pyramid'];
+                const sType = shapeTypes[Math.floor(Math.random() * Math.min(difficulty, shapeTypes.length))];
+                const vertices = create3DShape(sType);
+                const edges = getShapeEdges(sType);
+
+                // Target rotation (the answer)
+                const targetAngleY = (Math.floor(Math.random() * 8) / 8) * Math.PI * 2;
+                const targetAngleX = (Math.floor(Math.random() * 4) / 8) * Math.PI;
+
+                // Generate 4 options (different rotation angles)
+                const numOptions = 4;
+                const correctIndex = Math.floor(Math.random() * numOptions);
+                const options = [];
+                for (let i = 0; i < numOptions; i++) {
+                    if (i === correctIndex) {
+                        options.push({ angleY: targetAngleY, angleX: targetAngleX, isCorrect: true });
+                    } else {
+                        let ay = (Math.floor(Math.random() * 8) / 8) * Math.PI * 2;
+                        let ax = (Math.floor(Math.random() * 4) / 8) * Math.PI;
+                        // Ensure it's different from correct
+                        while (Math.abs(ay - targetAngleY) < 0.3 && Math.abs(ax - targetAngleX) < 0.3) {
+                            ay = (Math.floor(Math.random() * 8) / 8) * Math.PI * 2;
+                            ax = (Math.floor(Math.random() * 4) / 8) * Math.PI;
+                        }
+                        options.push({ angleY: ay, angleX: ax, isCorrect: false });
+                    }
+                }
+
+                return {
+                    mode: 'spatial',
+                    shapeType: sType,
+                    vertices,
+                    edges,
+                    options,
+                    correctIndex,
+                    animAngle: 0,
+                };
+            }
+
+            // ────────────────────────────────────────
+            // MEMORY ECHO GENERATOR
+            // ────────────────────────────────────────
+            const MEMORY_COLORS = ['#ff4060', '#40e890', '#00e0ff', '#ffc840', '#c070ff', '#ff8040'];
+            const NUM_WEDGES = 4; // starts at 4, increases with difficulty
+
+            function generateMemoryEcho(difficulty) {
+                const numWedges = Math.min(6, 4 + Math.floor((difficulty - 1) / 2));
+                const colors = MEMORY_COLORS.slice(0, numWedges);
+                const seqLength = 2 + difficulty;
+                const sequence = [];
+                for (let i = 0; i < seqLength; i++) {
+                    sequence.push(Math.floor(Math.random() * numWedges));
+                }
+                return {
+                    mode: 'memory',
+                    numWedges,
+                    colors,
+                    sequence,
+                    playerIndex: 0,
+                    phase: 'showing', // 'showing' | 'input'
+                    showIndex: 0,
+                    showTimer: 0,
+                    wedgeHighlight: -1,
+                    inputSequence: [],
+                };
+            }
+
+            // ────────────────────────────────────────
+            // EDUCATIONAL TOOLTIPS
+            // ────────────────────────────────────────
+            const tooltips = {
+                pattern: [
+                    "Pattern recognition engages your prefrontal cortex — the brain's executive center for abstract reasoning and fluid intelligence.",
+                    "Fluid intelligence (Gf) is the ability to solve novel problems independent of acquired knowledge. Matrix reasoning is a classic measure of Gf.",
+                    "The visual cortex processes shape patterns in parallel, allowing split-second recognition of regularities and anomalies.",
+                    "Research shows that practicing pattern recognition can strengthen neural pathways in the dorsolateral prefrontal cortex.",
+                ],
+                spatial: [
+                    "Mental rotation activates the parietal lobes, particularly the intraparietal sulcus, which handles spatial processing and visualization.",
+                    "Spatial reasoning is linked to the brain's right hemisphere and is a strong predictor of success in STEM fields and engineering.",
+                    "Studies by Shepard & Metzler (1971) showed that mental rotation time is linearly related to the angle of rotation — a foundational discovery in cognitive psychology.",
+                    "Practicing spatial tasks can increase gray matter density in the hippocampus, aiding navigation and memory.",
+                ],
+                memory: [
+                    "Working memory relies on the prefrontal cortex and can typically hold 4-7 items at once (Miller's Law). Chunking expands this capacity.",
+                    "The phonological loop and visuospatial sketchpad are two key subsystems of working memory, as described in Baddeley's model.",
+                    "High working memory capacity correlates with better academic performance, problem-solving ability, and fluid intelligence.",
+                    "Dual N-Back training — a working memory exercise — has been shown to produce small but measurable improvements in fluid intelligence.",
+                ],
+            };
+
+            function getRandomTooltip(mode) {
+                const tips = tooltips[mode] || tooltips['pattern'];
+                return tips[Math.floor(Math.random() * tips.length)];
+            }
+
+            // ────────────────────────────────────────
+            // CURRENT ROUND DATA
+            // ────────────────────────────────────────
+            let transitionData = null; // {wasCorrect, tooltip, mode}
+            let feedbackAlpha = 0;
+            let feedbackText = '';
+            let feedbackColor = '';
+
+            function startNewRound() {
+                const mode = modeOrder[modeIndex % 3];
+                currentMode = mode;
+                currentDifficulty = 1 + Math.floor(roundsCompleted / 3);
+                if (currentDifficulty > 5) currentDifficulty = 5;
+
+                switch (mode) {
+                    case 'pattern':
+                        puzzleData = generatePatternMatrix(currentDifficulty);
+                        break;
+                    case 'spatial':
+                        puzzleData = generateSpatialRotation(currentDifficulty);
+                        break;
+                    case 'memory':
+                        puzzleData = generateMemoryEcho(currentDifficulty);
+                        break;
+                }
+                resetTimer();
+                gameState = STATE.PLAYING;
+                feedbackAlpha = 0;
+                transitionData = null;
+                if (mode === 'memory') {
+                    puzzleData.phase = 'showing';
+                    puzzleData.showIndex = 0;
+                    puzzleData.showTimer = 0;
+                    puzzleData.inputSequence = [];
+                    puzzleData.playerIndex = 0;
+                }
+            }
+
+            function goToTransition(wasCorrect) {
+                gameState = STATE.TRANSITION;
+                timerActive = false;
+                const mode = currentMode || 'pattern';
+                transitionData = {
+                    wasCorrect,
+                    tooltip: getRandomTooltip(mode),
+                    mode,
+                };
+                feedbackText = wasCorrect ? 'CORRECT' : 'INCORRECT';
+                feedbackColor = wasCorrect ? '#40e890' : '#ff4060';
+                feedbackAlpha = 1;
+
+                if (wasCorrect) {
+                    sfxCorrect();
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
+                    if (combo >= 3) sfxCombo();
+                    totalCorrect++;
+                    const xpGain = 10 + combo * 5 + currentDifficulty * 3;
+                    xp += xpGain;
+                    if (xp >= level * 100) { level++;
+                        sfxLevelUp(); }
+                    spawnBurst(W / 2, H / 2, 30, '#40e890', 5, 35);
+                    triggerShake(3, 8);
+                    recentResults.push(true);
+                } else {
+                    combo = 0;
+                    totalWrong++;
+                    spawnBurst(W / 2, H / 2, 20, '#ff4060', 3, 25);
+                    triggerShake(5, 10);
+                    recentResults.push(false);
+                }
+                if (recentResults.length > 3) recentResults.shift();
+
+                // Update category stats
+                const cat = mode === 'pattern' ? 'logic' : mode === 'spatial' ? 'spatial' : 'memory';
+                statsPerCategory[cat].total++;
+                if (wasCorrect) statsPerCategory[cat].correct++;
+                if (combo > statsPerCategory[cat].bestStreak) statsPerCategory[cat].bestStreak = combo;
+                const rt = (performance.now() - roundStartTime) / 1000;
+                statsPerCategory.speed.totalTime += rt;
+                statsPerCategory.speed.count++;
+                if (rt < statsPerCategory.speed.fastest) statsPerCategory.speed.fastest = rt;
+                if (combo > statsPerCategory.focus.maxCombo) statsPerCategory.focus.maxCombo = combo;
+                statsPerCategory.focus.totalCombos++;
+
+                roundsCompleted++;
+            }
+
+            function continueFromTransition() {
+                if (roundsCompleted >= TOTAL_ROUNDS) {
+                    gameState = STATE.SUMMARY;
+                } else {
+                    modeIndex++;
+                    startNewRound();
+                }
+            }
+
+            // ────────────────────────────────────────
+            // DRAWING UTILITIES
+            // ────────────────────────────────────────
+            function drawShape(cx, cy, size, shapeType, fillType, rotation, color = '#f0f0f5') {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate((rotation || 0) * Math.PI / 180);
+                const s = size * 0.45;
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.fillStyle = fillType === 'filled' ? color : fillType === 'hatched' ? 'rgba(240,240,245,0.3)' :
+                    'transparent';
+
+                ctx.beginPath();
+                switch (shapeType) {
+                    case 'circle':
+                        ctx.arc(0, 0, s, 0, Math.PI * 2);
+                        break;
+                    case 'square':
+                        ctx.rect(-s, -s, s * 2, s * 2);
+                        break;
+                    case 'triangle':
+                        ctx.moveTo(0, -s);
+                        ctx.lineTo(s, s);
+                        ctx.lineTo(-s, s);
+                        ctx.closePath();
+                        break;
+                    case 'diamond':
+                        ctx.moveTo(0, -s);
+                        ctx.lineTo(s * 0.8, 0);
+                        ctx.lineTo(0, s);
+                        ctx.lineTo(-s * 0.8, 0);
+                        ctx.closePath();
+                        break;
+                    case 'hexagon':
+                        for (let i = 0; i < 6; i++) {
+                            const a = (Math.PI / 3) * i - Math.PI / 6;
+                            const px = Math.cos(a) * s;
+                            const py = Math.sin(a) * s;
+                            i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                        }
+                        ctx.closePath();
+                        break;
+                    case 'cross':
+                        const arm = s * 0.35;
+                        ctx.moveTo(-arm, -s);
+                        ctx.lineTo(arm, -s);
+                        ctx.lineTo(arm, -arm);
+                        ctx.lineTo(s, -arm);
+                        ctx.lineTo(s, arm);
+                        ctx.lineTo(arm, arm);
+                        ctx.lineTo(arm, s);
+                        ctx.lineTo(-arm, s);
+                        ctx.lineTo(-arm, arm);
+                        ctx.lineTo(-s, arm);
+                        ctx.lineTo(-s, -arm);
+                        ctx.lineTo(-arm, -arm);
+                        ctx.closePath();
+                        break;
+                    default:
+                        ctx.arc(0, 0, s, 0, Math.PI * 2);
+                }
+                if (fillType === 'filled' || fillType === 'hatched') ctx.fill();
+                ctx.stroke();
+
+                if (fillType === 'hatched') {
+                    ctx.save();
+                    ctx.clip();
+                    ctx.strokeStyle = 'rgba(240,240,245,0.5)';
+                    ctx.lineWidth = 0.8;
+                    for (let hx = -s; hx <= s; hx += s * 0.25) {
+                        ctx.beginPath();
+                        ctx.moveTo(hx, -s);
+                        ctx.lineTo(hx, s);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+
+                ctx.restore();
+            }
+
+            function drawRoundedRect(x, y, w, h, r, fill, stroke, lw = 1) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.arcTo(x + w, y, x + w, y + r, r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+                ctx.lineTo(x + r, y + h);
+                ctx.arcTo(x, y + h, x, y + h - r, r);
+                ctx.lineTo(x, y + r);
+                ctx.arcTo(x, y, x + r, y, r);
+                ctx.closePath();
+                if (fill) { ctx.fillStyle = fill;
+                    ctx.fill(); }
+                if (stroke) { ctx.strokeStyle = stroke;
+                    ctx.lineWidth = lw;
+                    ctx.stroke(); }
+            }
+
+            // ────────────────────────────────────────
+            // RENDER: START SCREEN
+            // ────────────────────────────────────────
+            function renderStart() {
+                ctx.fillStyle = '#08080f';
+                ctx.fillRect(0, 0, W, H);
+
+                const cx = W / 2;
+                const cy = H / 2;
+
+                // Glowing orb
+                const orbGrad = ctx.createRadialGradient(cx, cy - 60, 10, cx, cy - 60, 120);
+                orbGrad.addColorStop(0, 'rgba(0,224,255,0.5)');
+                orbGrad.addColorStop(0.5, 'rgba(0,224,255,0.08)');
+                orbGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = orbGrad;
+                ctx.beginPath();
+                ctx.arc(cx, cy - 60, 120, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Title
+                ctx.fillStyle = '#f0f0f5';
+                ctx.font = `bold ${36*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('Cognitive Catalyst', cx, cy - 20);
+
+                ctx.fillStyle = '#707080';
+                ctx.font = `${14*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('Brain Training Suite', cx, cy + 15);
+
+                // Subtitle
+                ctx.fillStyle = '#00e0ff';
+                ctx.font = `${11*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('Pattern Matrix • Spatial Rotation • Memory Echo', cx, cy + 45);
+
+                // Start button
+                const btnW = 200 * scale;
+                const btnH = 50 * scale;
+                const btnX = cx - btnW / 2;
+                const btnY = cy + 70;
+                const pulse = Math.sin(performance.now() * 0.003) * 0.3 + 0.7;
+                drawRoundedRect(btnX, btnY, btnW, btnH, btnH / 2, 'rgba(0,224,255,0.12)',
+                    `rgba(0,224,255,${0.4+pulse*0.4})`, 2);
+                ctx.fillStyle = '#f0f0f5';
+                ctx.font = `bold ${16*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('BEGIN ASSESSMENT', cx, btnY + btnH / 2 + 6);
+
+                // Version
+                ctx.fillStyle = '#404050';
+                ctx.font = `${9*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('v1.0 • 3 Cognitive Domains • Adaptive Difficulty', cx, H - 40);
+            }
+
+            // ────────────────────────────────────────
+            // RENDER: PLAYING - PATTERN MATRIX
+            // ────────────────────────────────────────
+            function renderPatternMatrix() {
+                const pd = puzzleData;
+                const gridSize = Math.min(W * 0.55, H * 0.45);
+                const cellSize = gridSize / 3;
+                const gridX = W * 0.08;
+                const gridY = H * 0.12;
+
+                // Draw grid
+                for (let r = 0; r < 3; r++) {
+                    for (let c = 0; c < 3; c++) {
+                        const cx = gridX + c * cellSize + cellSize / 2;
+                        const cy = gridY + r * cellSize + cellSize / 2;
+                        const isAnswer = (r === pd.answerCell.row && c === pd.answerCell.col);
+
+                        if (isAnswer) {
+                            ctx.strokeStyle = '#ffc840';
+                            ctx.lineWidth = 3;
+                            ctx.setLineDash([6, 4]);
+                            ctx.strokeRect(cx - cellSize / 2 + 4, cy - cellSize / 2 + 4, cellSize - 8, cellSize - 8);
+                            ctx.setLineDash([]);
+                            ctx.fillStyle = 'rgba(255,200,64,0.1)';
+                            ctx.fillRect(cx - cellSize / 2 + 4, cy - cellSize / 2 + 4, cellSize - 8, cellSize - 8);
+                            ctx.fillStyle = '#ffc840';
+                            ctx.font = `bold ${18*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                            ctx.textAlign = 'center';
+                            ctx.fillText('?', cx, cy + 7);
+                        } else {
+                            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(cx - cellSize / 2, cy - cellSize / 2, cellSize, cellSize);
+                            const cell = pd.grid[r][c];
+                            drawShape(cx, cy, cellSize * 0.6, cell.shape, cell.fill, cell.rotation);
+                        }
+                    }
+                }
+
+                // Draw options
+                const optStartY = gridY + gridSize + 30;
+                const optCount = pd.options.length;
+                const optWidth = Math.min((W * 0.82) / optCount, 120);
+                const optHeight = optWidth * 1.1;
+                const totalOptW = optWidth * optCount + (optCount - 1) * 12;
+                const optStartX = (W - totalOptW) / 2;
+
+                for (let i = 0; i < optCount; i++) {
+                    const ox = optStartX + i * (optWidth + 12);
+                    const oy = optStartY;
+                    const isHovered = mouseX > ox && mouseX < ox + optWidth && mouseY > oy && mouseY < oy + optHeight;
+
+                    drawRoundedRect(ox, oy, optWidth, optHeight, 10,
+                        isHovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
+                        isHovered ? 'rgba(0,224,255,0.5)' : 'rgba(255,255,255,0.2)', isHovered ? 2 : 1);
+                    const opt = pd.options[i];
+                    drawShape(ox + optWidth / 2, oy + optHeight / 2, Math.min(optWidth, optHeight) * 0.5, opt.shape, opt.fill,
+                        opt.rotation);
+                }
+
+                // Store option positions for click detection
+                puzzleData._optionRects = [];
+                for (let i = 0; i < pd.options.length; i++) {
+                    const ox = optStartX + i * (optWidth + 12);
+                    puzzleData._optionRects.push({ x: ox, y: optStartY, w: optWidth, h: optHeight, index: i });
+                }
+
+                // Label
+                ctx.fillStyle = '#d8dae0';
+                ctx.font = `bold ${13*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('Identify the missing pattern', W / 2, gridY - 20);
+                ctx.fillStyle = '#707080';
+                ctx.font = `${10*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('Pattern Matrix — Fluid Intelligence', W / 2, gridY - 5);
+            }
+
+            // ────────────────────────────────────────
+            // RENDER: PLAYING - SPATIAL ROTATION
+            // ────────────────────────────────────────
+            function renderSpatialRotation() {
+                const pd = puzzleData;
+                // Animate the demo shape
+                pd.animAngle += 0.015;
+                const demoAngleY = pd.animAngle;
+                const demoAngleX = 0.2;
+
+                const demoCX = W * 0.35;
+                const demoCY = H * 0.28;
+
+                // Draw rotating 3D shape
+                ctx.fillStyle = '#d8dae0';
+                ctx.font = `bold ${12*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('Rotating Object', demoCX, demoCY - 80);
+                ctx.fillText('Match the shadow', W * 0.7, demoCY - 80);
+
+                const projected = pd.vertices.map(v => {
+                    const r = rotateVertex(v, demoAngleY, demoAngleX);
+                    const p = projectVertex(r, 5);
+                    return [demoCX + p[0], demoCY + p[1], p[2]];
+                });
+
+                // Draw edges
+                ctx.strokeStyle = 'rgba(0,224,255,0.7)';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#00e0ff';
+                ctx.shadowBlur = 8;
+                for (const [a, b] of pd.edges) {
+                    ctx.beginPath();
+                    ctx.moveTo(projected[a][0], projected[a][1]);
+                    ctx.lineTo(projected[b][0], projected[b][1]);
+                    ctx.stroke();
+                }
+                // Draw vertices
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 10;
+                for (const p of projected) {
+                    ctx.beginPath();
+                    ctx.arc(p[0], p[1], 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0;
+
+                // Draw options (static 2D projections)
+                const optCount = pd.options.length;
+                const optSize = Math.min(W * 0.16, 100);
+                const totalOptW = optSize * optCount + (optCount - 1) * 15;
+                const optStartX = (W - totalOptW) / 2;
+                const optY = H * 0.55;
+
+                for (let i = 0; i < optCount; i++) {
+                    const ox = optStartX + i * (optSize + 15);
+                    const oy = optY;
+                    const isHovered = mouseX > ox && mouseX < ox + optSize && mouseY > oy && mouseY < oy + optSize;
+
+                    drawRoundedRect(ox, oy, optSize, optSize, 8,
+                        isHovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
+                        isHovered ? 'rgba(0,224,255,0.5)' : 'rgba(255,255,255,0.2)', isHovered ? 2 : 1);
+
+                    const opt = pd.options[i];
+                    const optProj = pd.vertices.map(v => {
+                        const r = rotateVertex(v, opt.angleY, opt.angleX);
+                        const p = projectVertex(r, 5);
+                        return [ox + optSize / 2 + p[0] * 0.7, oy + optSize / 2 + p[1] * 0.7, p[2]];
+                    });
+                    ctx.strokeStyle = '#d8dae0';
+                    ctx.lineWidth = 1.5;
+                    for (const [a, b] of pd.edges) {
+                        ctx.beginPath();
+                        ctx.moveTo(optProj[a][0], optProj[a][1]);
+                        ctx.lineTo(optProj[b][0], optProj[b][1]);
+                        ctx.stroke();
+                    }
+                    ctx.fillStyle = '#d8dae0';
+                    for (const p of optProj) {
+                        ctx.beginPath();
+                        ctx.arc(p[0], p[1], 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+
+                // Store option rects
+                puzzleData._optionRects = [];
+                for (let i = 0; i < optCount; i++) {
+                    const ox = optStartX + i * (optSize + 15);
+                    puzzleData._optionRects.push({ x: ox, y: optY, w: optSize, h: optSize, index: i });
+                }
+            }
+
+            // ────────────────────────────────────────
+            // RENDER: PLAYING - MEMORY ECHO
+            // ────────────────────────────────────────
+            function renderMemoryEcho() {
+                const pd = puzzleData;
+                const cx = W / 2;
+                const cy = H * 0.38;
+                const radius = Math.min(W * 0.3, H * 0.25);
+                const numWedges = pd.numWedges;
+                const wedgeAngle = (Math.PI * 2) / numWedges;
+
+                // Draw wedges
+                for (let i = 0; i < numWedges; i++) {
+                    const startAngle = -Math.PI / 2 + i * wedgeAngle;
+                    const endAngle = startAngle + wedgeAngle;
+                    const isHighlighted = pd.wedgeHighlight === i;
+
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.arc(cx, cy, radius, startAngle, endAngle);
+                    ctx.closePath();
+                    ctx.fillStyle = isHighlighted ? pd.colors[i] : 'rgba(255,255,255,0.06)';
+                    ctx.fill();
+                    ctx.strokeStyle = isHighlighted ? '#ffffff' : 'rgba(255,255,255,0.25)';
+                    ctx.lineWidth = isHighlighted ? 3 : 1.5;
+                    ctx.stroke();
+                    if (isHighlighted) {
+                        ctx.shadowColor = pd.colors[i];
+                        ctx.shadowBlur = 25;
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                    }
+                }
+
+                // Center circle
+                ctx.fillStyle = '#111118';
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Phase text
+                ctx.fillStyle = '#d8dae0';
+                ctx.font = `bold ${14*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                if (pd.phase === 'showing') {
+                    ctx.fillText('Watch the sequence...', cx, cy + radius + 50);
+                } else {
+                    ctx.fillText(`Your turn — Step ${pd.inputSequence.length + 1} of ${pd.sequence.length}`, cx, cy + radius +
+                        50);
+                }
+                ctx.fillStyle = '#707080';
+                ctx.font = `${10*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('Memory Echo — Working Memory', cx, cy + radius + 70);
+
+                // Store wedge hit areas
+                puzzleData._wedgeAreas = [];
+                for (let i = 0; i < numWedges; i++) {
+                    puzzleData._wedgeAreas.push({ index: i, cx, cy, radius, startAngle: -Math.PI / 2 + i * wedgeAngle,
+                        endAngle: -Math.PI / 2 + (i + 1) * wedgeAngle });
+                }
+            }
+
+            // ────────────────────────────────────────
+            // RENDER: TRANSITION SCREEN
+            // ────────────────────────────────────────
+            function renderTransition() {
+                const td = transitionData;
+                if (!td) return;
+
+                // Dim overlay
+                ctx.fillStyle = 'rgba(8,8,15,0.7)';
+                ctx.fillRect(0, 0, W, H);
+
+                // Feedback
+                const pulse = feedbackAlpha;
+                ctx.fillStyle = feedbackColor;
+                ctx.globalAlpha = pulse;
+                ctx.font = `bold ${40*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText(feedbackText, W / 2, H * 0.25);
+                ctx.globalAlpha = 1;
+
+                // XP gained
+                if (td.wasCorrect) {
+                    const xpGain = 10 + combo * 5 + currentDifficulty * 3;
+                    ctx.fillStyle = '#ffc840';
+                    ctx.font = `bold ${16*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                    ctx.fillText(`+${xpGain} XP  •  Combo x${combo}`, W / 2, H * 0.32);
+                }
+
+                // Tooltip box
+                const boxW = Math.min(W * 0.85, 500);
+                const boxH = 100 * scale;
+                const boxX = W / 2 - boxW / 2;
+                const boxY = H * 0.42;
+                drawRoundedRect(boxX, boxY, boxW, boxH, 12, 'rgba(17,17,24,0.9)', 'rgba(255,255,255,0.15)', 1);
+
+                ctx.fillStyle = '#00e0ff';
+                ctx.font = `bold ${10*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('🧠 DID YOU KNOW?', W / 2, boxY + 22);
+
+                ctx.fillStyle = '#d8dae0';
+                ctx.font = `${11*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                const words = td.tooltip.split(' ');
+                let line = '';
+                let lineY = boxY + 46;
+                const maxWidth = boxW - 30;
+                for (const word of words) {
+                    const test = line + word + ' ';
+                    if (ctx.measureText(test).width > maxWidth && line.length > 0) {
+                        ctx.fillText(line.trim(), W / 2, lineY);
+                        lineY += 17;
+                        line = word + ' ';
+                    } else {
+                        line = test;
+                    }
+                }
+                if (line.trim()) ctx.fillText(line.trim(), W / 2, lineY);
+
+                // Continue button
+                const btnW = 160 * scale;
+                const btnH = 44 * scale;
+                const btnX = W / 2 - btnW / 2;
+                const btnY = boxY + boxH + 25;
+                const isHovered = mouseX > btnX && mouseX < btnX + btnW && mouseY > btnY && mouseY < btnY + btnH;
+                drawRoundedRect(btnX, btnY, btnW, btnH, btnH / 2,
+                    isHovered ? 'rgba(0,224,255,0.2)' : 'rgba(0,224,255,0.08)',
+                    'rgba(0,224,255,0.5)', 2);
+                ctx.fillStyle = '#f0f0f5';
+                ctx.font = `bold ${13*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                const remaining = TOTAL_ROUNDS - roundsCompleted;
+                ctx.fillText(remaining > 0 ? `Continue (${remaining} rounds left)` : 'View Profile', W / 2, btnY + btnH / 2 +
+                    5);
+
+                transitionData._btnRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+            }
+
+            // ────────────────────────────────────────
+            // RENDER: SUMMARY (RADAR CHART)
+            // ────────────────────────────────────────
+            function renderSummary() {
+                ctx.fillStyle = '#08080f';
+                ctx.fillRect(0, 0, W, H);
+
+                const cx = W / 2;
+                const cy = H * 0.32;
+
+                ctx.fillStyle = '#f0f0f5';
+                ctx.font = `bold ${28*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('Cognitive Profile', cx, cy - 80);
+
+                // Calculate scores
+                const getPct = (correct, total) => total > 0 ? Math.round((correct / total) * 100) : 50;
+                const logicScore = getPct(statsPerCategory.logic.correct, statsPerCategory.logic.total);
+                const spatialScore = getPct(statsPerCategory.spatial.correct, statsPerCategory.spatial.total);
+                const memoryScore = getPct(statsPerCategory.memory.correct, statsPerCategory.memory.total);
+                const speedScore = statsPerCategory.speed.count > 0 ?
+                    Math.min(100, Math.round((3 / Math.max(0.5, statsPerCategory.speed.totalTime / statsPerCategory.speed
+                        .count)) * 100)) :
+                    50;
+                const focusScore = Math.min(100, maxCombo * 15 + 20);
+
+                const scores = [logicScore, spatialScore, memoryScore, speedScore, focusScore];
+                const labels = ['Logic', 'Spatial', 'Memory', 'Speed', 'Focus'];
+                const colors = ['#00e0ff', '#c070ff', '#40e890', '#ffc840', '#ff4060'];
+
+                // Radar chart
+                const radarR = Math.min(W * 0.28, H * 0.22);
+                const numAxes = 5;
+
+                // Draw grid
+                for (let ring = 1; ring <= 4; ring++) {
+                    const r = radarR * (ring / 4);
+                    ctx.beginPath();
+                    for (let i = 0; i < numAxes; i++) {
+                        const angle = -Math.PI / 2 + (Math.PI * 2 / numAxes) * i;
+                        const px = cx + Math.cos(angle) * r;
+                        const py = cy + Math.sin(angle) * r;
+                        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                // Draw axes
+                for (let i = 0; i < numAxes; i++) {
+                    const angle = -Math.PI / 2 + (Math.PI * 2 / numAxes) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(cx + Math.cos(angle) * radarR, cy + Math.sin(angle) * radarR);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                // Draw data polygon
+                ctx.beginPath();
+                for (let i = 0; i < numAxes; i++) {
+                    const angle = -Math.PI / 2 + (Math.PI * 2 / numAxes) * i;
+                    const r = radarR * (scores[i] / 100);
+                    const px = cx + Math.cos(angle) * r;
+                    const py = cy + Math.sin(angle) * r;
+                    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0,224,255,0.15)';
+                ctx.fill();
+                ctx.strokeStyle = '#00e0ff';
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = '#00e0ff';
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Draw labels and scores
+                for (let i = 0; i < numAxes; i++) {
+                    const angle = -Math.PI / 2 + (Math.PI * 2 / numAxes) * i;
+                    const lx = cx + Math.cos(angle) * (radarR + 35);
+                    const ly = cy + Math.sin(angle) * (radarR + 35);
+                    ctx.fillStyle = colors[i];
+                    ctx.font = `bold ${11*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${labels[i]} ${scores[i]}%`, lx, ly);
+                }
+
+                // Stats below
+                const statsY = cy + radarR + 60;
+                ctx.fillStyle = '#f0f0f5';
+                ctx.font = `bold ${14*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText(`Level ${level}  •  ${xp} XP  •  Max Combo: ${maxCombo}`, cx, statsY);
+                ctx.fillStyle = '#707080';
+                ctx.font = `${10*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText(`${totalCorrect} correct • ${totalWrong} wrong • ${TOTAL_ROUNDS} rounds`, cx, statsY + 22);
+
+                // Replay button
+                const btnW = 180 * scale;
+                const btnH = 46 * scale;
+                const btnX = cx - btnW / 2;
+                const btnY = statsY + 45;
+                const isHovered = mouseX > btnX && mouseX < btnX + btnW && mouseY > btnY && mouseY < btnY + btnH;
+                drawRoundedRect(btnX, btnY, btnW, btnH, btnH / 2,
+                    isHovered ? 'rgba(0,224,255,0.2)' : 'rgba(0,224,255,0.08)',
+                    'rgba(0,224,255,0.5)', 2);
+                ctx.fillStyle = '#f0f0f5';
+                ctx.font = `bold ${14*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.fillText('PLAY AGAIN', cx, btnY + btnH / 2 + 5);
+                summaryData = { btnX, btnY, btnW, btnH };
+            }
+            let summaryData = null;
+
+            // ────────────────────────────────────────
+            // RENDER: HUD (Timer, XP, Combo)
+            // ────────────────────────────────────────
+            function renderHUD() {
+                if (gameState !== STATE.PLAYING) return;
+
+                // Timer bar
+                const barW = W - 40;
+                const barH = 6;
+                const barX = 20;
+                const barY = 15;
+                const progress = timerRemaining / timerMax;
+
+                ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                drawRoundedRect(barX, barY, barW, barH, barH / 2, 'rgba(255,255,255,0.06)', null);
+                const barColor = progress > 0.5 ? '#40e890' : progress > 0.25 ? '#ffc840' : '#ff4060';
+                ctx.fillStyle = barColor;
+                drawRoundedRect(barX, barY, barW * progress, barH, barH / 2, barColor, null);
+                ctx.shadowColor = barColor;
+                ctx.shadowBlur = 8;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Timer text
+                ctx.fillStyle = '#d8dae0';
+                ctx.font = `bold ${11*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                ctx.textAlign = 'right';
+                ctx.fillText(`${timerRemaining.toFixed(1)}s`, W - 20, barY + barH + 16);
+
+                // XP & Level
+                ctx.textAlign = 'left';
+                ctx.fillStyle = '#ffc840';
+                ctx.fillText(`Lv.${level}  •  ${xp} XP`, 20, barY + barH + 16);
+
+                // Combo
+                if (combo >= 2) {
+                    const comboAlpha = 0.7 + Math.sin(performance.now() * 0.01) * 0.3;
+                    ctx.fillStyle = `rgba(255,200,64,${comboAlpha})`;
+                    ctx.textAlign = 'center';
+                    ctx.font = `bold ${18*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                    ctx.fillText(`🔥 x${combo} NEURAL FLOW`, W / 2, barY + barH + 30);
+                }
+
+                // Mode label
+                ctx.fillStyle = '#707080';
+                ctx.textAlign = 'center';
+                ctx.font = `${10*scale}px "SF Pro Display", "Inter", system-ui, sans-serif`;
+                const modeLabel = currentMode === 'pattern' ? 'Pattern Matrix' : currentMode === 'spatial' ?
+                    'Spatial Rotation' : 'Memory Echo';
+                ctx.fillText(`${modeLabel}  •  Difficulty ${currentDifficulty}/5  •  Round ${roundsCompleted+1}/${TOTAL_ROUNDS}`,
+                    W / 2, barY + barH + 44);
+            }
+
+            // ────────────────────────────────────────
+            // MAIN RENDER
+            // ────────────────────────────────────────
+            function render() {
+                ctx.clearRect(0, 0, W, H);
+                ctx.save();
+                ctx.translate(shakeX, shakeY);
+
+                switch (gameState) {
+                    case STATE.START:
+                        renderStart();
+                        break;
+                    case STATE.PLAYING:
+                        // Background
+                        ctx.fillStyle = '#08080f';
+                        ctx.fillRect(-20, -20, W + 40, H + 40);
+                        // Render mode-specific
+                        if (currentMode === 'pattern') renderPatternMatrix();
+                        else if (currentMode === 'spatial') renderSpatialRotation();
+                        else if (currentMode === 'memory') renderMemoryEcho();
+                        renderHUD();
+                        break;
+                    case STATE.TRANSITION:
+                        ctx.fillStyle = '#08080f';
+                        ctx.fillRect(-20, -20, W + 40, H + 40);
+                        if (currentMode === 'pattern') renderPatternMatrix();
+                        else if (currentMode === 'spatial') renderSpatialRotation();
+                        else if (currentMode === 'memory') renderMemoryEcho();
+                        renderHUD();
+                        renderTransition();
+                        break;
+                    case STATE.SUMMARY:
+                        renderSummary();
+                        break;
+                }
+
+                ctx.restore();
+
+                // Particles (screen space)
+                for (const p of particles) p.draw(ctx);
+
+                // Feedback overlay
+                if (feedbackAlpha > 0 && gameState === STATE.TRANSITION) {
+                    feedbackAlpha *= 0.92;
+                    if (feedbackAlpha < 0.01) feedbackAlpha = 0;
+                }
+            }
+
+            // ────────────────────────────────────────
+            // INPUT HANDLING
+            // ────────────────────────────────────────
+            let mouseX = 0,
+                mouseY = 0;
+            let pointerDown = false;
+
+            canvas.addEventListener('pointermove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+            });
+
+            canvas.addEventListener('pointerdown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+                pointerDown = true;
+                handleClick(mouseX, mouseY);
+            });
+
+            canvas.addEventListener('pointerup', () => { pointerDown = false; });
+
+            function handleClick(x, y) {
+                sfxClick();
+                switch (gameState) {
+                    case STATE.START:
+                        gameState = STATE.PLAYING;
+                        modeIndex = 0;
+                        roundsCompleted = 0;
+                        xp = 0;
+                        level = 1;
+                        combo = 0;
+                        maxCombo = 0;
+                        totalCorrect = 0;
+                        totalWrong = 0;
+                        recentResults = [];
+                        statsPerCategory = {
+                            logic: { correct: 0, total: 0, bestStreak: 0 },
+                            spatial: { correct: 0, total: 0, bestStreak: 0 },
+                            memory: { correct: 0, total: 0, bestStreak: 0 },
+                            speed: { totalTime: 0, count: 0, fastest: Infinity },
+                            focus: { maxCombo: 0, totalCombos: 0 },
+                        };
+                        startNewRound();
+                        break;
+                    case STATE.PLAYING:
+                        if (currentMode === 'pattern' && puzzleData._optionRects) {
+                            for (const opt of puzzleData._optionRects) {
+                                if (x > opt.x && x < opt.x + opt.w && y > opt.y && y < opt.y + opt.h) {
+                                    const selected = puzzleData.options[opt.index];
+                                    const correct = puzzleData.correctAnswer;
+                                    const isCorrect =
+                                        selected.shape === correct.shape &&
+                                        selected.fill === correct.fill &&
+                                        selected.size === correct.size &&
+                                        selected.rotation === correct.rotation;
+                                    goToTransition(isCorrect);
+                                    return;
+                                }
+                            }
+                        } else if (currentMode === 'spatial' && puzzleData._optionRects) {
+                            for (const opt of puzzleData._optionRects) {
+                                if (x > opt.x && x < opt.x + opt.w && y > opt.y && y < opt.y + opt.h) {
+                                    const isCorrect = puzzleData.options[opt.index].isCorrect;
+                                    goToTransition(isCorrect);
+                                    return;
+                                }
+                            }
+                        } else if (currentMode === 'memory' && puzzleData._wedgeAreas && puzzleData.phase === 'input') {
+                            for (const wedge of puzzleData._wedgeAreas) {
+                                const dx = x - wedge.cx;
+                                const dy = y - wedge.cy;
+                                const dist = Math.sqrt(dx * dx + dy * dy);
+                                if (dist < wedge.radius) {
+                                    let angle = Math.atan2(dy, dx);
+                                    if (angle < -Math.PI / 2) angle += Math.PI * 2;
+                                    if (angle >= wedge.startAngle && angle < wedge.endAngle) {
+                                        handleMemoryInput(wedge.index);
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    case STATE.TRANSITION:
+                        if (transitionData && transitionData._btnRect) {
+                            const b = transitionData._btnRect;
+                            if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+                                continueFromTransition();
+                            }
+                        }
+                        break;
+                    case STATE.SUMMARY:
+                        if (summaryData) {
+                            const b = summaryData;
+                            if (x > b.btnX && x < b.btnX + b.btnW && y > b.btnY && y < b.btnY + b.btnH) {
+                                gameState = STATE.START;
+                                summaryData = null;
+                            }
+                        }
+                        break;
+                }
+            }
+
+            function handleMemoryInput(wedgeIndex) {
+                const pd = puzzleData;
+                pd.inputSequence.push(wedgeIndex);
+                pd.wedgeHighlight = wedgeIndex;
+                setTimeout(() => { if (puzzleData === pd) pd.wedgeHighlight = -1; }, 200);
+
+                const expectedIndex = pd.inputSequence.length - 1;
+                if (pd.inputSequence[expectedIndex] !== pd.sequence[expectedIndex]) {
+                    // Wrong
+                    goToTransition(false);
+                    return;
+                }
+                if (pd.inputSequence.length === pd.sequence.length) {
+                    // Complete!
+                    goToTransition(true);
+                }
+            }
+
+            // ────────────────────────────────────────
+            // UPDATE LOOP
+            // ────────────────────────────────────────
+            let lastTime = performance.now();
+
+            function update(dt) {
+                updateShake();
+                updateTimer(dt);
+
+                // Update particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    if (!particles[i].alive) particles.splice(i, 1);
+                }
+
+                // Memory echo: showing phase
+                if (gameState === STATE.PLAYING && currentMode === 'memory' && puzzleData && puzzleData.phase === 'showing') {
+                    puzzleData.showTimer += dt;
+                    const showInterval = Math.max(0.35, 0.9 - currentDifficulty * 0.1);
+                    if (puzzleData.showTimer >= showInterval) {
+                        puzzleData.showTimer = 0;
+                        puzzleData.showIndex++;
+                        if (puzzleData.showIndex >= puzzleData.sequence.length) {
+                            puzzleData.phase = 'input';
+                            puzzleData.showIndex = -1;
+                            puzzleData.wedgeHighlight = -1;
+                            puzzleData.inputSequence = [];
+                        } else {
+                            puzzleData.wedgeHighlight = puzzleData.sequence[puzzleData.showIndex];
+                            setTimeout(() => { if (puzzleData && puzzleData.phase === 'showing') puzzleData.wedgeHighlight =
+                                    -1; }, showInterval * 600);
+                        }
+                    }
+                }
+
+                // Fade transition feedback
+                if (gameState === STATE.TRANSITION && feedbackAlpha > 0) {
+                    feedbackAlpha -= dt * 0.7;
+                    if (feedbackAlpha < 0) feedbackAlpha = 0;
+                }
+            }
+
+            function gameLoop(timestamp) {
+                const dt = Math.min(0.1, (timestamp - lastTime) / 1000);
+                lastTime = timestamp;
+                update(dt);
+                render();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // ────────────────────────────────────────
+            // INIT
+            // ────────────────────────────────────────
+            resize();
+            gameState = STATE.START;
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+
+            console.log('%c🧠 Cognitive Catalyst %cReady',
+                'color:#00e0ff;font-size:18px;', 'color:#d8dae0;');
+            console.log('%c3 Cognitive Domains • Adaptive Difficulty • Neural Flow Combos',
+                'color:#707080;');
+            console.log('%cPattern Matrix | Spatial Rotation | Memory Echo',
+                'color:#ffc840;font-size:11px;');
+        })();
+    </script>
+</body>
+</html>
