@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Geographic</title>
+<style>
+  :root{
+    --bg:#05080d;
+    --panel:rgba(10,16,24,0.72);
+    --panel-solid:#0a1018;
+    --line:rgba(110,200,230,0.22);
+    --line-strong:rgba(110,200,230,0.5);
+    --ink:#e6f0f6;
+    --dim:#7d93a3;
+    --accent:#43e8d4;     /* teal — explore / select */
+    --accent2:#5fb0ff;    /* blue — instrument chrome */
+    --good:#46e08a;
+    --bad:#ff5d72;
+    --amber:#ffc24d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:ui-sans-serif,system-ui,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+  }
+  /* monospace for "instrument" numeric/data readouts */
+  .mono{font-family:ui-monospace,"SFMono-Regular","Cascadia Mono",Menlo,Consolas,monospace}
+
+  #globeViz{position:fixed;inset:0;touch-action:none;cursor:grab}
+  #globeViz:active{cursor:grabbing}
+
+  /* overlay root passes pointer events through to the globe;
+     individual panels re-enable them */
+  #ui{position:fixed;inset:0;z-index:10;pointer-events:none}
+  #ui .panel,#ui button,#ui .card{pointer-events:auto}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;align-items:flex-start;justify-content:space-between;
+    padding:18px 20px;gap:14px;
+  }
+  .brand{line-height:1.1}
+  .brand h1{
+    font-size:.95rem;letter-spacing:.34em;font-weight:600;color:var(--ink);
+  }
+  .brand h1 i{font-style:normal;color:var(--accent)}
+  .brand p{margin-top:5px;font-size:.6rem;letter-spacing:.26em;color:var(--dim);text-transform:uppercase}
+
+  /* segmented mode control */
+  .modes{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);backdrop-filter:blur(8px)}
+  .modes button{
+    background:transparent;border:0;color:var(--dim);
+    font-size:.66rem;letter-spacing:.2em;font-weight:600;padding:11px 16px;cursor:pointer;
+    transition:color .18s,background .18s;-webkit-tap-highlight-color:transparent;text-transform:uppercase;
+  }
+  .modes button.active{color:var(--bg);background:var(--accent)}
+  .modes button:not(.active):hover{color:var(--ink)}
+
+  /* ---------- challenge HUD ---------- */
+  .quizbar{
+    position:absolute;top:78px;left:50%;transform:translateX(-50%) translateY(-12px);
+    width:min(440px,calc(100vw - 32px));
+    background:var(--panel);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:14px;padding:14px 16px;
+    opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+  .quizbar.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  .quizbar .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .quizbar .prompt span{font-size:.56rem;letter-spacing:.26em;color:var(--dim);display:block}
+  .quizbar .prompt b{font-size:1.45rem;font-weight:700;letter-spacing:.01em;color:var(--ink);display:block;margin-top:2px}
+  .quizbar .scores{display:flex;gap:10px;text-align:right}
+  .stat{min-width:54px}
+  .stat span{display:block;font-size:.5rem;letter-spacing:.2em;color:var(--dim)}
+  .stat b{display:block;font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
+  .stat.s b{color:var(--accent)} .stat.k b{color:var(--amber)} .stat.h b{color:var(--ink)}
+  .quizbar .actions{display:flex;gap:8px;margin-top:12px}
+  .quizbar .actions button{
+    flex:1;background:rgba(95,176,255,0.08);border:1px solid var(--line);border-radius:9px;
+    color:var(--ink);font-size:.62rem;letter-spacing:.16em;font-weight:600;padding:9px;cursor:pointer;
+    transition:background .18s,border-color .18s;text-transform:uppercase;
+  }
+  .quizbar .actions button:hover{background:rgba(95,176,255,0.16);border-color:var(--line-strong)}
+  .timerwrap{height:3px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:12px;overflow:hidden;display:none}
+  .timerwrap.on{display:block}
+  .timerbar{height:100%;width:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transform-origin:left;will-change:transform}
+
+  /* ---------- fact card (explore) ---------- */
+  .card{
+    position:absolute;right:20px;bottom:20px;width:min(330px,calc(100vw - 32px));
+    background:var(--panel);backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:16px;padding:18px;
+    box-shadow:0 22px 60px rgba(0,0,0,.55);
+    opacity:0;transform:translateY(14px) scale(.98);pointer-events:none;
+    transition:opacity .28s ease,transform .28s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .card.show{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+  .card .close{
+    position:absolute;top:12px;right:12px;width:26px;height:26px;border-radius:7px;
+    background:transparent;border:1px solid var(--line);color:var(--dim);cursor:pointer;font-size:.9rem;line-height:1;
+  }
+  .card .close:hover{color:var(--ink);border-color:var(--line-strong)}
+  .card .head{display:flex;align-items:center;gap:13px;margin-bottom:14px;padding-right:30px}
+  .card .flag{
+    width:58px;height:39px;border-radius:5px;flex:none;object-fit:cover;
+    border:1px solid var(--line);background:#0d141c;display:grid;place-items:center;font-size:1.4rem;
+  }
+  .card .title h2{font-size:1.12rem;font-weight:700;line-height:1.15}
+  .card .title .iso{font-size:.6rem;letter-spacing:.22em;color:var(--accent);margin-top:3px}
+  .card .facts{display:flex;flex-direction:column;gap:1px;border-top:1px solid var(--line);padding-top:4px}
+  .card .fact{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(110,200,230,0.08)}
+  .card .fact:last-child{border-bottom:0}
+  .card .fact .k{font-size:.6rem;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;padding-top:2px}
+  .card .fact .v{font-size:.86rem;font-weight:600;text-align:right;color:var(--ink)}
+
+  /* ---------- bottom-left instrument cluster ---------- */
+  .cluster{position:absolute;left:20px;bottom:20px;display:flex;align-items:flex-end;gap:12px}
+  .compass{
+    width:54px;height:54px;border-radius:50%;background:var(--panel);backdrop-filter:blur(8px);
+    border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;position:relative;
+    transition:border-color .2s,transform .12s;
+  }
+  .compass:hover{border-color:var(--line-strong)}
+  .compass:active{transform:scale(.94)}
+  .compass svg{width:30px;height:30px}
+  .readout{
+    background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;font-size:.6rem;letter-spacing:.08em;color:var(--dim);line-height:1.7;
+  }
+  .readout b{color:var(--accent2)}
+
+  /* ---------- feedback flash ---------- */
+  .flash{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0}
+  .flash.good{background:radial-gradient(circle at 50% 50%,rgba(70,224,138,0.28),transparent 62%);animation:flash .7s ease}
+  .flash.bad{background:radial-gradient(circle at 50% 50%,rgba(255,93,114,0.30),transparent 62%);animation:flash .7s ease}
+  @keyframes flash{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
+  .toast{
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);z-index:21;pointer-events:none;
+    font-size:clamp(1.6rem,7vw,2.8rem);font-weight:800;letter-spacing:.12em;opacity:0;
+  }
+  .toast.go{animation:toast .9s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes toast{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1.12)}}
+
+  /* ---------- loader ---------- */
+  #loader{
+    position:fixed;inset:0;z-index:40;background:var(--bg);display:grid;place-items:center;
+    transition:opacity .6s ease;
+  }
+  #loader.hide{opacity:0;pointer-events:none}
+  .loader-inner{text-align:center}
+  .loader-inner .ring{
+    width:46px;height:46px;margin:0 auto 18px;border-radius:50%;
+    border:2px solid rgba(110,200,230,0.18);border-top-color:var(--accent);animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loader-inner p{font-size:.66rem;letter-spacing:.34em;color:var(--dim);text-transform:uppercase}
+
+  @media (max-width:560px){
+    .brand p{display:none}
+    .card{left:16px;right:16px;width:auto;bottom:16px}
+    .cluster{bottom:auto;top:74px;left:16px}
+    .readout{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important}
+  }
+</style>
+</head>
+<body>
+  <div id="globeViz"></div>
+
+  <!-- ============================ UI OVERLAYS ============================ -->
+  <div id="ui">
+    <div class="topbar">
+      <div class="brand">
+        <h1>TERRA<i>//</i>ATLAS</h1>
+        <p>geographic survey instrument</p>
+      </div>
+      <div class="modes">
+        <button id="modeExplore" class="active">Explore</button>
+        <button id="modeChallenge">Challenge</button>
+      </div>
+    </div>
+
+    <!-- Challenge HUD -->
+    <div class="quizbar" id="quizbar">
+      <div class="row">
+        <div class="prompt"><span>LOCATE</span><b id="quizTarget">—</b></div>
+        <div class="scores">
+          <div class="stat s"><span>SCORE</span><b id="qScore">0</b></div>
+          <div class="stat k"><span>STREAK</span><b id="qStreak">0</b></div>
+          <div class="stat h"><span>BEST</span><b id="qBest">0</b></div>
+        </div>
+      </div>
+      <div class="timerwrap" id="timerWrap"><div class="timerbar" id="timerBar"></div></div>
+      <div class="actions">
+        <button id="quizSkip">Skip ▸</button>
+        <button id="quizExit">Exit</button>
+      </div>
+    </div>
+
+    <!-- Fact card -->
+    <div class="card" id="card">
+      <button class="close" id="cardClose">✕</button>
+      <div class="head">
+        <div class="flag" id="cardFlag">🌐</div>
+        <div class="title"><h2 id="cardName">—</h2><div class="iso mono" id="cardIso"></div></div>
+      </div>
+      <div class="facts" id="cardFacts"></div>
+    </div>
+
+    <!-- Bottom-left instrument cluster -->
+    <div class="cluster">
+      <div class="compass" id="resetView" title="Reset view">
+        <svg viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="44" stroke="rgba(110,200,230,0.35)" stroke-width="2"/>
+          <polygon points="50,12 58,50 50,44 42,50" fill="#ff5d72"/>
+          <polygon points="50,88 42,50 50,56 58,50" fill="rgba(230,240,246,0.7)"/>
+          <text x="50" y="9" fill="#e6f0f6" font-size="11" text-anchor="middle" font-family="monospace">N</text>
+        </svg>
+      </div>
+      <div class="readout mono">
+        LAT <b id="roLat">+20.0</b><br>
+        LON <b id="roLon">+10.0</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="flash" id="flash"></div>
+  <div class="toast mono" id="toast"></div>
+
+  <div id="loader"><div class="loader-inner"><div class="ring"></div><p id="loaderTxt">Initializing globe</p></div></div>
+
+  <!-- Globe.gl standalone build (bundles Three.js + three-globe). Pinned for stability. -->
+  <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.46"></script>
+  <script>
+  (function(){
+    "use strict";
+
+    /* =====================================================================
+       DATA SOURCES
+       - Earth textures: three-globe example assets via jsDelivr CDN
+       - Country boundaries: Natural Earth 110m admin-0 (GeoJSON), 177 features.
+         Useful properties per feature: ADMIN, ISO_A2, ISO_A3, POP_EST,
+         GDP_MD_EST (millions USD), CONTINENT, SUBREGION, INCOME_GRP.
+       - Flags: flagcdn.com (built from ISO_A2 — renders identically on every OS,
+         unlike emoji flags which break on Windows).
+       - Optional enrichment: restcountries.com v3.1 (capital city), non-blocking.
+       ===================================================================== */
+    const TEX = {
+      globe:'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg',
+      bump :'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png',
+      sky  :'https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png'
+    };
+    // Primary = jsDelivr CDN (cached, fast). Fallback = GitHub raw (verified working).
+    const GEOJSON_URLS = [
+      'https://cdn.jsdelivr.net/gh/vasturiano/globe.gl@master/example/datasets/ne_110m_admin_0_countries.geojson',
+      'https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson'
+    ];
+
+    /* This dataset stores France/Norway with ISO_A2 = "-99". Patch for flags. */
+    const ISO2_FIX = { France:'FR', Norway:'NO' };
+
+    /* =====================================================================
+       ░░░  QUIZ MODE — DIFFICULTY CONFIG  ░░░   ◀── TWEAK THESE
+       Every knob that controls how hard "Challenge" mode feels lives here.
+       ===================================================================== */
+    const QUIZ = {
+      MIN_POPULATION: 4000000,  // Only countries above this can be asked.
+                                //   ↑ raise (e.g. 20000000) = easier, only famous big nations
+                                //   ↓ lower (e.g. 0)         = harder, includes obscure ones
+      EXCLUDE_ISO_A2: ['AQ'],   // Never ask these (Antarctica by default).
+      ROUND_TIME_SEC: 0,        // 0 = relaxed (no timer). Set e.g. 15 for a per-question countdown.
+      POINTS_CORRECT: 100,      // Base points for a correct find.
+      STREAK_BONUS:   25,       // Extra points = STREAK_BONUS × current streak.
+      REVEAL_ON_WRONG:true,     // On a miss, briefly flash the correct country green.
+      AVOID_REPEAT_LAST: 12     // Don't re-ask any of the last N answered countries.
+    };
+
+    // ---- state ----
+    let world, FEATURES = [], geoReady = false, globeReady = false;
+    let MODE = 'explore';                 // 'explore' | 'challenge'
+    let hoverISO = null, selectISO = null;// ISO_A3 keys for highlight
+    let revealISO = null, wrongISO = null;// challenge feedback highlights
+    let quizPool = [], quizTarget = null, recent = [];
+    let score = 0, streak = 0, best = 0, locked = false;
+    let cardToken = 0;                    // guards async flag/capital races
+    let timerId = null;
+
+    const $ = id => document.getElementById(id);
+    const keyOf = f => f.properties.ISO_A3 || f.properties.ADMIN;
+
+    best = (+localStorage.getItem('terra.best') || 0);
+    $('qBest').textContent = best;
+
+    /* =====================================================================
+       GLOBE SETUP
+       ===================================================================== */
+    function initGlobe(){
+      world = new Globe($('globeViz'), { animateIn:true })
+        .globeImageUrl(TEX.globe)
+        .bumpImageUrl(TEX.bump)
+        .backgroundImageUrl(TEX.sky)
+        .showAtmosphere(true)
+        .atmosphereColor('#5fb0ff')
+        .atmosphereAltitude(0.18)
+        .polygonsTransitionDuration(280)
+        // polygon visuals are driven by the accessor fns below; refreshPolys() re-applies them
+        .polygonAltitude(polyAltitude)
+        .polygonCapColor(polyCapColor)
+        .polygonSideColor(()=>'rgba(95,176,255,0.06)')
+        .polygonStrokeColor(()=>'rgba(110,200,230,0.28)')
+        .polygonLabel(polyLabel)
+        .onPolygonHover(onHover)
+        .onPolygonClick(onClick)
+        .onGlobeReady(()=>{ globeReady = true; maybeHideLoader(); });
+
+      // initial camera
+      world.pointOfView({ lat:20, lng:10, altitude:2.5 }, 0);
+
+      // gentle ambient spin until the user first touches the globe
+      world.controls().autoRotate = true;
+      world.controls().autoRotateSpeed = 0.35;
+      $('globeViz').addEventListener('pointerdown', stopAutoRotate, { once:true });
+
+      // live lat/lon readout + responsive sizing
+      world.controls().addEventListener('change', updateReadout);
+      sizeGlobe();
+      window.addEventListener('resize', sizeGlobe);
+    }
+
+    function stopAutoRotate(){ if(world) world.controls().autoRotate = false; }
+
+    function sizeGlobe(){
+      if(!world) return;
+      world.width(window.innerWidth).height(window.innerHeight);
+    }
+
+    function updateReadout(){
+      if(!world) return;
+      const pov = world.pointOfView();
+      $('roLat').textContent = (pov.lat>=0?'+':'') + pov.lat.toFixed(1);
+      $('roLon').textContent = (pov.lng>=0?'+':'') + pov.lng.toFixed(1);
+    }
+
+    /* ---- polygon accessor functions (highlight logic) ---- */
+    function polyCapColor(f){
+      const k = keyOf(f);
+      if(k===revealISO) return 'rgba(70,224,138,0.62)';   // challenge: correct reveal
+      if(k===wrongISO)  return 'rgba(255,93,114,0.58)';   // challenge: your wrong pick
+      if(k===selectISO) return 'rgba(67,232,212,0.50)';   // explore: selected
+      if(k===hoverISO)  return 'rgba(120,220,255,0.26)';  // hover
+      return 'rgba(255,255,255,0.012)';                   // near-invisible but clickable
+    }
+    function polyAltitude(f){
+      const k = keyOf(f);
+      if(k===revealISO||k===wrongISO||k===selectISO) return 0.05;
+      if(k===hoverISO) return 0.03;
+      return 0.008;
+    }
+    function polyLabel(f){
+      // In Challenge mode we hide tooltips so you can't hover to read the answer.
+      if(MODE==='challenge') return '';
+      return `<div style="font:600 12px ui-sans-serif;padding:3px 8px;background:rgba(8,14,20,.85);
+              border:1px solid rgba(110,200,230,.3);border-radius:6px;color:#e6f0f6">
+              ${f.properties.ADMIN}</div>`;
+    }
+    // Force globe.gl to re-evaluate the accessors after a state change.
+    function refreshPolys(){
+      if(world) world.polygonCapColor(polyCapColor).polygonAltitude(polyAltitude);
+    }
+
+    /* =====================================================================
+       ASYNC GEOJSON LOAD  (never blocks the main thread / globe render)
+       ===================================================================== */
+    function loadCountries(){
+      $('loaderTxt').textContent = 'Loading country data';
+      // Try each source in order; only fail if all are unreachable.
+      const tryFetch = (i) => fetch(GEOJSON_URLS[i])
+        .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+        .catch(err => {
+          if(i + 1 < GEOJSON_URLS.length) return tryFetch(i + 1); // fall back
+          throw err;
+        });
+
+      tryFetch(0)
+        .then(geo => {
+          FEATURES = geo.features.filter(d => d.properties.ISO_A2 !== 'AQ'); // drop Antarctica
+          world.polygonsData(FEATURES);
+          buildQuizPool();
+          geoReady = true;
+          maybeHideLoader();
+        })
+        .catch(err => {
+          $('loaderTxt').textContent = 'Could not load country data — check your connection';
+          console.error(err);
+        });
+    }
+
+    function maybeHideLoader(){
+      if(geoReady && globeReady){
+        setTimeout(()=>{ $('loader').classList.add('hide'); updateReadout(); }, 250);
+      }
+    }
+
+    /* =====================================================================
+       INTERACTION
+       ===================================================================== */
+    function onHover(f){
+      hoverISO = f ? keyOf(f) : null;
+      $('globeViz').style.cursor = f ? 'pointer' : 'grab';
+      refreshPolys();
+    }
+
+    function onClick(f){
+      if(!f) return;
+      stopAutoRotate();
+      if(MODE==='explore') selectCountry(f);
+      else handleGuess(f);   // ◀── QUIZ answer handling
+    }
+
+    /* ---------- EXPLORE: select + fact card ---------- */
+    function selectCountry(f){
+      selectISO = keyOf(f);
+      refreshPolys();
+      flyTo(f);
+      showCard(f);
+    }
+
+    function flyTo(f){
+      // rough centroid from bounding box of the first ring
+      try{
+        const coords = (f.geometry.type==='Polygon' ? f.geometry.coordinates[0]
+                       : f.geometry.coordinates[0][0]);
+        let lo=0,la=0; coords.forEach(c=>{lo+=c[0];la+=c[1];});
+        lo/=coords.length; la/=coords.length;
+        world.pointOfView({ lat:la, lng:lo, altitude:1.7 }, 900);
+      }catch(e){}
+    }
+
+    function showCard(f){
+      const p = f.properties;
+      const token = ++cardToken;
+      $('cardName').textContent = p.ADMIN;
+      $('cardIso').textContent = (p.ISO_A3 && p.ISO_A3!=='-99') ? p.ISO_A3 : '';
+
+      // flag (flagcdn from ISO_A2, with patch + emoji fallback)
+      const iso2 = isoA2(p);
+      const flagEl = $('cardFlag');
+      if(iso2){
+        flagEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.className = 'flag'; img.alt = p.ADMIN + ' flag'; img.style.cssText='width:100%;height:100%;border:0';
+        img.src = `https://flagcdn.com/w320/${iso2.toLowerCase()}.png`;
+        img.onerror = ()=>{ flagEl.textContent = '🌐'; };
+        flagEl.appendChild(img);
+      } else {
+        flagEl.textContent = '🏳️';
+      }
+
+      // facts derived instantly from GeoJSON properties
+      const facts = [];
+      const pop = +p.POP_EST;
+      if(isFinite(pop) && pop>0) facts.push(['Population', humanNum(pop)]);
+      const region = [p.CONTINENT, (p.SUBREGION && p.SUBREGION!==p.CONTINENT) ? p.SUBREGION : null]
+                       .filter(Boolean).join(' · ');
+      if(region) facts.push(['Region', region]);
+      const g = gdp(p.GDP_MD_EST);
+      if(g) facts.push(['Est. GDP', g]);
+      const inc = (p.INCOME_GRP||'').replace(/^\d+\.\s*/,'').trim();
+      if(inc) facts.push(['Income tier', inc]);
+      renderFacts(facts);
+
+      $('card').classList.add('show');
+
+      // OPTIONAL non-blocking enrichment: add capital city from restcountries.
+      enrichCapital(p.ISO_A3, token);
+    }
+
+    function renderFacts(rows){
+      $('cardFacts').innerHTML = rows.map(([k,v])=>
+        `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+    }
+
+    function enrichCapital(iso3, token){
+      if(!iso3 || iso3==='-99') return;
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 4000);
+      fetch(`https://restcountries.com/v3.1/alpha/${iso3}?fields=capital`, { signal:ctrl.signal })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => {
+          clearTimeout(t);
+          if(!j || token!==cardToken) return;            // user moved on — ignore
+          const o = Array.isArray(j) ? j[0] : j;
+          const cap = o && o.capital && o.capital[0];
+          if(cap){
+            const el = document.createElement('div');
+            el.className = 'fact';
+            el.innerHTML = `<div class="k">Capital</div><div class="v">${cap}</div>`;
+            $('cardFacts').prepend(el);
+          }
+        })
+        .catch(()=>clearTimeout(t));                      // silent fail — facts already shown
+    }
+
+    function isoA2(p){
+      let c = p.ISO_A2;
+      if(!c || c==='-99') c = ISO2_FIX[p.ADMIN] || null;
+      return c;
+    }
+
+    $('cardClose').onclick = ()=>{ $('card').classList.remove('show'); selectISO=null; refreshPolys(); };
+
+    /* =====================================================================
+       ░░░  QUIZ MODE — CORE LOGIC  ░░░   ◀── EDIT GAMEPLAY HERE
+       buildQuizPool()  : decides which countries are askable (uses QUIZ config)
+       nextQuestion()   : picks the next target, avoiding recent repeats
+       handleGuess(f)   : scores a click as correct / incorrect + feedback
+       ===================================================================== */
+    function buildQuizPool(){
+      quizPool = FEATURES.filter(f=>{
+        const p = f.properties;
+        if(QUIZ.EXCLUDE_ISO_A2.includes(p.ISO_A2)) return false;
+        return (+p.POP_EST||0) >= QUIZ.MIN_POPULATION;   // ← difficulty filter
+      });
+    }
+
+    function nextQuestion(){
+      revealISO = wrongISO = null; locked = false;
+      let choice, guard=0;
+      do {
+        choice = quizPool[Math.floor(Math.random()*quizPool.length)];
+        guard++;
+      } while (choice && recent.includes(keyOf(choice)) && guard < 60);
+
+      quizTarget = choice;
+      recent.push(keyOf(choice));
+      if(recent.length > QUIZ.AVOID_REPEAT_LAST) recent.shift();
+
+      $('quizTarget').textContent = choice.properties.ADMIN;
+      refreshPolys();
+      startTimer();
+    }
+
+    function handleGuess(f){
+      if(locked || !quizTarget) return;
+      const correct = keyOf(f) === keyOf(quizTarget);
+
+      if(correct){
+        locked = true; stopTimer();
+        streak += 1;
+        score += QUIZ.POINTS_CORRECT + QUIZ.STREAK_BONUS * (streak-1);
+        if(score > best){ best = score; localStorage.setItem('terra.best', best); }
+        revealISO = keyOf(f); refreshPolys();
+        flash('good'); toast('CORRECT', 'var(--good)');
+        syncScores();
+        setTimeout(nextQuestion, 1100);          // ← delay before next question
+      } else {
+        // wrong pick: reset streak, show your pick (red) and optionally the answer (green)
+        streak = 0;
+        wrongISO = keyOf(f);
+        if(QUIZ.REVEAL_ON_WRONG) revealISO = keyOf(quizTarget);
+        refreshPolys();
+        flash('bad'); toast('MISS', 'var(--bad)');
+        syncScores();
+        locked = true; stopTimer();
+        setTimeout(nextQuestion, 1300);
+      }
+    }
+
+    function quizSkip(){
+      if(locked) return;
+      streak = 0;
+      revealISO = keyOf(quizTarget);            // show where it was
+      refreshPolys(); syncScores(); locked = true; stopTimer();
+      setTimeout(nextQuestion, 900);
+    }
+
+    // optional per-question timer (enabled when QUIZ.ROUND_TIME_SEC > 0)
+    function startTimer(){
+      stopTimer();
+      const wrap = $('timerWrap'), bar = $('timerBar');
+      if(QUIZ.ROUND_TIME_SEC <= 0){ wrap.classList.remove('on'); return; }
+      wrap.classList.add('on');
+      bar.style.transition='none'; bar.style.transform='scaleX(1)';
+      void bar.offsetWidth;
+      bar.style.transition=`transform ${QUIZ.ROUND_TIME_SEC}s linear`;
+      bar.style.transform='scaleX(0)';
+      timerId = setTimeout(()=>{ if(!locked) quizSkip(); }, QUIZ.ROUND_TIME_SEC*1000);
+    }
+    function stopTimer(){ if(timerId){ clearTimeout(timerId); timerId=null; } }
+
+    function syncScores(){
+      $('qScore').textContent = score;
+      $('qStreak').textContent = streak;
+      $('qBest').textContent = best;
+    }
+
+    /* =====================================================================
+       MODE SWITCHING + feedback helpers
+       ===================================================================== */
+    function setMode(m){
+      MODE = m;
+      $('modeExplore').classList.toggle('active', m==='explore');
+      $('modeChallenge').classList.toggle('active', m==='challenge');
+      // clear all highlights/state
+      selectISO = revealISO = wrongISO = null; locked=false; stopTimer();
+      $('card').classList.remove('show');
+      refreshPolys();
+
+      if(m==='challenge'){
+        $('quizbar').classList.add('show');
+        score = 0; streak = 0; recent = []; syncScores();
+        if(geoReady) nextQuestion();
+      } else {
+        $('quizbar').classList.remove('show');
+        quizTarget = null;
+        world.pointOfView({ altitude:2.5 }, 800);
+      }
+    }
+
+    function flash(kind){
+      const el = $('flash');
+      el.className = 'flash'; void el.offsetWidth; el.classList.add(kind);
+    }
+    function toast(txt, color){
+      const el = $('toast');
+      el.textContent = txt; el.style.color = color;
+      el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+    }
+
+    /* ---------- number formatting for facts ---------- */
+    function humanNum(n){
+      n = +n;
+      if(n>=1e9) return (n/1e9).toFixed(2).replace(/\.?0+$/,'')+' billion';
+      if(n>=1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+' million';
+      if(n>=1e3) return Math.round(n/1e3)+',000';
+      return ''+Math.round(n);
+    }
+    function gdp(md){
+      md = +md;
+      if(!isFinite(md) || md<=0) return null;
+      const usd = md*1e6;                       // GDP_MD_EST is in millions of USD
+      if(usd>=1e12) return '$'+(usd/1e12).toFixed(2).replace(/\.?0+$/,'')+' trillion';
+      if(usd>=1e9)  return '$'+(usd/1e9).toFixed(1).replace(/\.0$/,'')+' billion';
+      return '$'+Math.round(usd/1e6)+' million';
+    }
+
+    /* =====================================================================
+       WIRE UP CONTROLS + BOOT
+       ===================================================================== */
+    $('modeExplore').onclick   = ()=>setMode('explore');
+    $('modeChallenge').onclick = ()=>setMode('challenge');
+    $('quizSkip').onclick      = quizSkip;
+    $('quizExit').onclick      = ()=>setMode('explore');
+    $('resetView').onclick     = ()=>{ stopAutoRotate(); world.pointOfView({ lat:20, lng:10, altitude:2.5 }, 900); };
+
+    initGlobe();
+    loadCountries();
+  })();
+  </script>
+</body>
+</html>
