@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Chimp Test — Neon Memory</title>
+
+  <style>
+    :root {
+      --bg: #090b10;
+      --panel: #11151f;
+      --panel-2: #161b27;
+      --tile: #1c2433;
+      --tile-border: rgba(255, 255, 255, 0.12);
+      --accent: #37f8ff;
+      --accent-2: #b46cff;
+      --success: #53ff9c;
+      --danger: #ff4d6d;
+      --warning: #ffe66d;
+      --text: #f6f8ff;
+      --muted: rgba(246, 248, 255, 0.64);
+      --tile-size: 68px;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: manipulation;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(55, 248, 255, 0.12), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(180, 108, 255, 0.12), transparent 34%),
+        var(--bg);
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .app {
+      width: 100%;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding: clamp(12px, 2vw, 24px);
+      transition: filter 120ms ease;
+    }
+
+    .app.shake {
+      animation: screenShake 320ms ease both;
+    }
+
+    @keyframes screenShake {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      15% { transform: translate3d(-8px, 5px, 0); }
+      30% { transform: translate3d(7px, -6px, 0); }
+      45% { transform: translate3d(-6px, -3px, 0); }
+      60% { transform: translate3d(5px, 7px, 0); }
+      75% { transform: translate3d(-3px, 4px, 0); }
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 14px;
+      align-items: stretch;
+      width: min(1100px, 100%);
+      margin: 0 auto 14px;
+      z-index: 2;
+    }
+
+    .brand,
+    .target-card,
+    .stats {
+      min-height: 86px;
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(22, 27, 39, 0.88), rgba(12, 15, 23, 0.88));
+      box-shadow:
+        0 18px 60px rgba(0, 0, 0, 0.25),
+        inset 0 0 26px rgba(255, 255, 255, 0.025);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .logo {
+      margin: 0;
+      font-size: clamp(22px, 4vw, 34px);
+      line-height: 1;
+      letter-spacing: -0.06em;
+      font-weight: 950;
+    }
+
+    .logo span {
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(55, 248, 255, 0.4);
+    }
+
+    .subtitle {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .target-card {
+      min-width: min(360px, 42vw);
+      text-align: center;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    .level {
+      margin-top: 4px;
+      color: var(--warning);
+      font-size: clamp(34px, 7vw, 58px);
+      font-weight: 1000;
+      line-height: 0.95;
+      text-shadow: 0 0 24px rgba(255, 230, 109, 0.24);
+    }
+
+    .status {
+      margin-top: 5px;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 850;
+      min-height: 20px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      text-align: right;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .stat strong {
+      font-size: clamp(18px, 4vw, 28px);
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .timer-wrap {
+      width: min(1100px, 100%);
+      margin: 0 auto 12px;
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.06);
+      box-shadow: 0 0 24px rgba(55, 248, 255, 0.08);
+    }
+
+    .timer-bar {
+      width: 100%;
+      height: 100%;
+      transform-origin: left center;
+      transform: scaleX(1);
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--warning), var(--accent-2), var(--danger));
+      box-shadow: 0 0 18px rgba(55, 248, 255, 0.35);
+    }
+
+    .board-shell {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding-bottom: clamp(8px, 2vw, 18px);
+    }
+
+    .board {
+      position: relative;
+      width: min(1100px, 100%);
+      height: min(690px, 100%);
+      min-height: 420px;
+      border-radius: 30px;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        radial-gradient(circle at center, rgba(55, 248, 255, 0.075), transparent 58%),
+        rgba(7, 10, 16, 0.82);
+      background-size: 44px 44px, 44px 44px, auto, auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow:
+        inset 0 0 80px rgba(0, 0, 0, 0.35),
+        0 20px 90px rgba(0, 0, 0, 0.34);
+      touch-action: manipulation;
+    }
+
+    .board::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, transparent, rgba(55, 248, 255, 0.08), transparent);
+      transform: translateX(-110%);
+      animation: scan 5s linear infinite;
+    }
+
+    .board.success-pulse {
+      animation: boardSuccess 420ms ease both;
+    }
+
+    @keyframes scan {
+      to { transform: translateX(110%); }
+    }
+
+    @keyframes boardSuccess {
+      0% { box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35), 0 20px 90px rgba(0, 0, 0, 0.34); }
+      45% { box-shadow: inset 0 0 80px rgba(83, 255, 156, 0.18), 0 0 70px rgba(83, 255, 156, 0.2); }
+      100% { box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35), 0 20px 90px rgba(0, 0, 0, 0.34); }
+    }
+
+    .tile {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: var(--tile-size);
+      height: var(--tile-size);
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--tile-border);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.16), transparent 38%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(0, 0, 0, 0.08)),
+        var(--tile);
+      color: var(--accent);
+      font-size: calc(var(--tile-size) * 0.42);
+      font-weight: 1000;
+      cursor: pointer;
+      transform: translate(-50%, -50%) scale(1);
+      box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.24),
+        0 0 0 rgba(55, 248, 255, 0);
+      transition:
+        transform 150ms ease,
+        border-color 150ms ease,
+        background 150ms ease,
+        color 150ms ease,
+        opacity 170ms ease,
+        box-shadow 150ms ease;
+      animation: tileIn 340ms cubic-bezier(.2, 1.5, .25, 1) both;
+      overflow: hidden;
+    }
+
+    .tile::after {
+      content: "";
+      position: absolute;
+      width: 120%;
+      height: 120%;
+      border-radius: inherit;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.34), transparent 60%);
+      opacity: 0;
+      transform: scale(0.25);
+      pointer-events: none;
+    }
+
+    .tile:hover {
+      border-color: rgba(55, 248, 255, 0.42);
+      transform: translate(-50%, -50%) scale(1.055);
+      box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.24),
+        0 0 26px rgba(55, 248, 255, 0.14);
+    }
+
+    .tile:active {
+      transform: translate(-50%, -50%) scale(0.96);
+    }
+
+    .tile.concealed {
+      color: transparent;
+      text-shadow: none;
+    }
+
+    .tile.correct {
+      color: #06100b;
+      background: var(--success);
+      border-color: rgba(255, 255, 255, 0.7);
+      box-shadow:
+        0 0 0 6px rgba(83, 255, 156, 0.13),
+        0 0 34px rgba(83, 255, 156, 0.35);
+    }
+
+    .tile.correct::after {
+      animation: ripple 300ms ease-out both;
+    }
+
+    .tile.cleared {
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.28) rotate(8deg);
+    }
+
+    .tile.wrong {
+      color: #fff;
+      background: var(--danger);
+      border-color: rgba(255, 255, 255, 0.7);
+      animation: wrongTile 430ms ease both;
+      box-shadow:
+        0 0 0 7px rgba(255, 77, 109, 0.14),
+        0 0 34px rgba(255, 77, 109, 0.42);
+    }
+
+    .tile.hint {
+      color: #070710;
+      background: var(--warning);
+      border-color: rgba(255, 255, 255, 0.75);
+      box-shadow:
+        0 0 0 7px rgba(255, 230, 109, 0.12),
+        0 0 34px rgba(255, 230, 109, 0.34);
+    }
+
+    .tile.revealed {
+      color: rgba(246, 248, 255, 0.92);
+    }
+
+    @keyframes tileIn {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5) rotate(-8deg);
+        filter: blur(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1) rotate(0);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes ripple {
+      0% {
+        opacity: 0.9;
+        transform: scale(0.2);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.4);
+      }
+    }
+
+    @keyframes wrongTile {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      25% { transform: translate(calc(-50% - 7px), -50%) scale(1.04); }
+      50% { transform: translate(calc(-50% + 7px), -50%) scale(1.04); }
+      75% { transform: translate(calc(-50% - 4px), -50%) scale(1.02); }
+    }
+
+    .center-toast {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 8;
+      transform: translate(-50%, -50%) scale(0.94);
+      padding: 16px 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(9, 11, 16, 0.76);
+      backdrop-filter: blur(10px);
+      color: var(--success);
+      font-size: clamp(22px, 6vw, 48px);
+      font-weight: 1000;
+      letter-spacing: -0.04em;
+      pointer-events: none;
+      opacity: 0;
+      text-shadow: 0 0 24px rgba(83, 255, 156, 0.35);
+    }
+
+    .center-toast.show {
+      animation: toastPop 680ms ease both;
+    }
+
+    @keyframes toastPop {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.76);
+      }
+      18% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.05);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -56%) scale(1);
+      }
+    }
+
+    .flash {
+      position: fixed;
+      inset: 0;
+      z-index: 6;
+      opacity: 0;
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+
+    .flash.success {
+      animation: flashSuccess 360ms ease both;
+    }
+
+    .flash.error {
+      animation: flashError 420ms ease both;
+    }
+
+    @keyframes flashSuccess {
+      0% { opacity: 0; background: rgba(83, 255, 156, 0); }
+      35% { opacity: 0.25; background: rgba(83, 255, 156, 0.35); }
+      100% { opacity: 0; background: rgba(83, 255, 156, 0); }
+    }
+
+    @keyframes flashError {
+      0% { opacity: 0; background: rgba(255, 77, 109, 0); }
+      28% { opacity: 0.32; background: rgba(255, 77, 109, 0.45); }
+      100% { opacity: 0; background: rgba(255, 77, 109, 0); }
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background:
+        radial-gradient(circle at 50% 38%, rgba(55, 248, 255, 0.12), transparent 30%),
+        radial-gradient(circle at 26% 82%, rgba(180, 108, 255, 0.14), transparent 34%),
+        rgba(4, 6, 12, 0.82);
+      backdrop-filter: blur(12px);
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .modal {
+      width: min(620px, 95vw);
+      padding: clamp(24px, 5vw, 44px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 30px;
+      background: linear-gradient(180deg, rgba(22, 27, 39, 0.95), rgba(8, 10, 17, 0.95));
+      box-shadow:
+        0 30px 100px rgba(0, 0, 0, 0.48),
+        inset 0 0 34px rgba(255, 255, 255, 0.03);
+      text-align: center;
+    }
+
+    .modal h1 {
+      margin: 0 0 10px;
+      font-size: clamp(42px, 11vw, 84px);
+      line-height: 0.9;
+      letter-spacing: -0.075em;
+      font-weight: 1000;
+      background: linear-gradient(90deg, var(--accent), var(--warning), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 22px rgba(55, 248, 255, 0.18));
+    }
+
+    .modal p {
+      margin: 0 auto;
+      max-width: 510px;
+      color: var(--muted);
+      font-size: clamp(15px, 3.5vw, 18px);
+      line-height: 1.55;
+    }
+
+    .instructions {
+      display: grid;
+      gap: 10px;
+      margin: 24px auto 30px;
+      color: rgba(246, 248, 255, 0.82);
+      font-size: clamp(13px, 3.2vw, 16px);
+      line-height: 1.55;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 9px;
+      margin: 0 2px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 26px;
+    }
+
+    .primary-btn,
+    .secondary-btn {
+      min-width: 180px;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 1000;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      cursor: pointer;
+      transition: transform 130ms ease, filter 130ms ease;
+    }
+
+    .primary-btn {
+      background: linear-gradient(90deg, var(--accent), var(--warning), var(--accent-2));
+      color: #080a10;
+      box-shadow:
+        0 0 34px rgba(55, 248, 255, 0.2),
+        0 15px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    .secondary-btn {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .primary-btn:hover,
+    .secondary-btn:hover {
+      transform: translateY(-2px) scale(1.03);
+      filter: brightness(1.08);
+    }
+
+    .primary-btn:active,
+    .secondary-btn:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    .fail-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .fail-stat {
+      padding: 13px 10px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .fail-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .fail-stat strong {
+      display: block;
+      margin-top: 5px;
+      font-size: clamp(22px, 6vw, 34px);
+      line-height: 1;
+      font-weight: 1000;
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        padding: 10px;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .brand {
+        grid-column: 1 / -1;
+        min-height: auto;
+      }
+
+      .target-card {
+        min-width: 0;
+      }
+
+      .brand,
+      .target-card,
+      .stats {
+        border-radius: 18px;
+        padding: 11px 12px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .stat {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .stat strong {
+        font-size: 18px;
+      }
+
+      .subtitle {
+        font-size: 12px;
+      }
+
+      .board {
+        min-height: 0;
+        height: 100%;
+        border-radius: 24px;
+      }
+
+      .fail-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-actions {
+        flex-direction: column;
+      }
+
+      .primary-btn,
+      .secondary-btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-height: 680px) {
+      .brand {
+        display: none;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .target-card,
+      .stats {
+        min-height: 72px;
+      }
+
+      .board {
+        min-height: 300px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app" id="app">
+    <header class="topbar">
+      <section class="brand">
+        <h1 class="logo">Chimp<span>Test</span></h1>
+        <div class="subtitle">Memorize the numbers. Tap them in order after they disappear.</div>
+      </section>
+
+      <section class="target-card">
+        <div class="label">Current Level</div>
+        <div class="level" id="levelText">3</div>
+        <div class="status" id="statusText">Ready</div>
+      </section>
+
+      <section class="stats">
+        <div class="stat">
+          <span class="label">Best</span>
+          <strong id="bestText">0</strong>
+        </div>
+        <div class="stat">
+          <span class="label">Combo</span>
+          <strong id="comboText">0</strong>
+        </div>
+        <div class="stat">
+          <span class="label">Time</span>
+          <strong id="timeText">0.0s</strong>
+        </div>
+      </section>
+    </header>
+
+    <div class="timer-wrap" aria-hidden="true">
+      <div class="timer-bar" id="timerBar"></div>
+    </div>
+
+    <section class="board-shell">
+      <div class="board" id="board" aria-label="Chimp test game board"></div>
+    </section>
+  </main>
+
+  <div class="center-toast" id="toast">Level Clear</div>
+  <div class="flash" id="flash"></div>
+
+  <section class="overlay" id="startOverlay">
+    <div class="modal">
+      <h1>Chimp Test</h1>
+      <p>
+        A fast memory game inspired by the classic chimpanzee number test.
+        Numbers appear briefly, then vanish. Tap the blank tiles in order.
+      </p>
+
+      <div class="instructions">
+        <div>Starts at <span class="pill">3 tiles</span>. Every clear adds one more tile.</div>
+        <div>Numbers stay visible for <span class="pill">2 seconds</span>, then hide.</div>
+        <div>Wrong tap = <span class="pill">Level Failed</span>. Your best level is saved locally.</div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="primary-btn" id="startBtn">Start Game</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="overlay hidden" id="failOverlay">
+    <div class="modal">
+      <h1>Failed</h1>
+      <p id="failMessage">You clicked out of order.</p>
+
+      <div class="fail-stats">
+        <div class="fail-stat">
+          <span>Level</span>
+          <strong id="failLevel">3</strong>
+        </div>
+        <div class="fail-stat">
+          <span>Expected</span>
+          <strong id="failExpected">1</strong>
+        </div>
+        <div class="fail-stat">
+          <span>Best</span>
+          <strong id="failBest">0</strong>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="primary-btn" id="retryBtn">Retry Level</button>
+        <button class="secondary-btn" id="restartBtn">Restart From 3</button>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    /**
+     * ============================================================
+     * CONFIG
+     * Change these values to quickly reskin or tune the game.
+     * ============================================================
+     */
+    const CONFIG = {
+      startingDifficulty: 3,
+      previewDurationMs: 2000,
+      successDelayMs: 680,
+
+      tileColor: "#1c2433",
+      backgroundColor: "#090b10",
+      accentColor: "#37f8ff",
+      accentColor2: "#b46cff",
+      successColor: "#53ff9c",
+      dangerColor: "#ff4d6d",
+      warningColor: "#ffe66d",
+
+      minTileSize: 44,
+      maxTileSize: 82,
+      tileGap: 12,
+
+      localStorageKey: "chimp-test-neon-best-level",
+
+      enableSound: true,
+      enableVibration: true
+    };
+
+    /**
+     * ============================================================
+     * DOM REFERENCES
+     * ============================================================
+     */
+    const app = document.getElementById("app");
+    const board = document.getElementById("board");
+    const timerBar = document.getElementById("timerBar");
+    const flash = document.getElementById("flash");
+    const toast = document.getElementById("toast");
+
+    const startOverlay = document.getElementById("startOverlay");
+    const failOverlay = document.getElementById("failOverlay");
+
+    const startBtn = document.getElementById("startBtn");
+    const retryBtn = document.getElementById("retryBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const levelText = document.getElementById("levelText");
+    const statusText = document.getElementById("statusText");
+    const bestText = document.getElementById("bestText");
+    const comboText = document.getElementById("comboText");
+    const timeText = document.getElementById("timeText");
+
+    const failMessage = document.getElementById("failMessage");
+    const failLevel = document.getElementById("failLevel");
+    const failExpected = document.getElementById("failExpected");
+    const failBest = document.getElementById("failBest");
+
+    /**
+     * ============================================================
+     * GAME STATE
+     * ============================================================
+     */
+    const game = {
+      phase: "menu", // menu | preview | playing | success | failed
+      level: CONFIG.startingDifficulty,
+      expected: 1,
+      combo: 0,
+      best: loadBestLevel(),
+      tiles: [],
+      roundToken: 0,
+      previewStart: 0,
+      playStart: 0,
+      speedBonusWindowMs: 0,
+      animationFrame: null
+    };
+
+    /**
+     * ============================================================
+     * AUDIO
+     * Small Web Audio API sounds. No external files.
+     * ============================================================
+     */
+    const audio = {
+      ctx: null
+    };
+
+    function initAudio() {
+      if (!CONFIG.enableSound || audio.ctx) return;
+
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+
+      audio.ctx = new AudioContext();
+    }
+
+    function playTone(freq, duration = 0.08, type = "sine", volume = 0.05, delay = 0) {
+      if (!CONFIG.enableSound || !audio.ctx) return;
+
+      const now = audio.ctx.currentTime + delay;
+      const osc = audio.ctx.createOscillator();
+      const gain = audio.ctx.createGain();
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      osc.connect(gain);
+      gain.connect(audio.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + duration + 0.03);
+    }
+
+    function playClickSound(number) {
+      playTone(220 + number * 24, 0.045, "triangle", 0.035);
+    }
+
+    function playSuccessSound() {
+      playTone(392, 0.08, "triangle", 0.06, 0);
+      playTone(523.25, 0.08, "triangle", 0.055, 0.06);
+      playTone(783.99, 0.12, "sine", 0.05, 0.12);
+    }
+
+    function playErrorSound() {
+      if (!CONFIG.enableSound || !audio.ctx) return;
+
+      const now = audio.ctx.currentTime;
+      const osc = audio.ctx.createOscillator();
+      const gain = audio.ctx.createGain();
+
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(55, now + 0.24);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.075, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+
+      osc.connect(gain);
+      gain.connect(audio.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.3);
+    }
+
+    /**
+     * ============================================================
+     * INITIALIZATION
+     * ============================================================
+     */
+    function init() {
+      applyThemeFromConfig();
+      updateHud();
+
+      startBtn.addEventListener("click", () => startGame(true));
+      retryBtn.addEventListener("click", retryLevel);
+      restartBtn.addEventListener("click", () => startGame(true));
+
+      window.addEventListener("resize", refreshTileSize);
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          if (game.phase === "menu") startGame(true);
+          if (game.phase === "failed") retryLevel();
+        }
+
+        if (event.key === "Escape" && game.phase === "failed") {
+          startGame(true);
+        }
+      });
+
+      game.animationFrame = requestAnimationFrame(tick);
+    }
+
+    function applyThemeFromConfig() {
+      const root = document.documentElement;
+
+      root.style.setProperty("--bg", CONFIG.backgroundColor);
+      root.style.setProperty("--tile", CONFIG.tileColor);
+      root.style.setProperty("--accent", CONFIG.accentColor);
+      root.style.setProperty("--accent-2", CONFIG.accentColor2);
+      root.style.setProperty("--success", CONFIG.successColor);
+      root.style.setProperty("--danger", CONFIG.dangerColor);
+      root.style.setProperty("--warning", CONFIG.warningColor);
+    }
+
+    /**
+     * ============================================================
+     * GAME FLOW
+     * ============================================================
+     */
+    function startGame(resetLevel) {
+      initAudio();
+
+      if (audio.ctx && audio.ctx.state === "suspended") {
+        audio.ctx.resume();
+      }
+
+      if (resetLevel) {
+        game.level = CONFIG.startingDifficulty;
+        game.combo = 0;
+      }
+
+      startOverlay.classList.add("hidden");
+      failOverlay.classList.add("hidden");
+
+      startRound();
+    }
+
+    function retryLevel() {
+      game.combo = 0;
+      failOverlay.classList.add("hidden");
+      startRound();
+    }
+
+    function startRound() {
+      game.roundToken++;
+      game.phase = "preview";
+      game.expected = 1;
+      game.previewStart = performance.now();
+      game.playStart = 0;
+      game.speedBonusWindowMs = calculateSpeedBonusWindow(game.level);
+
+      clearBoard();
+      generateTiles(game.level);
+
+      statusText.textContent = "Memorize";
+      timeText.textContent = `${(CONFIG.previewDurationMs / 1000).toFixed(1)}s`;
+      timerBar.style.transform = "scaleX(1)";
+
+      updateHud();
+
+      const token = game.roundToken;
+
+      window.setTimeout(() => {
+        if (token !== game.roundToken || game.phase !== "preview") return;
+        hideNumbers();
+      }, CONFIG.previewDurationMs);
+    }
+
+    function hideNumbers() {
+      game.phase = "playing";
+      game.playStart = performance.now();
+
+      for (const tile of game.tiles) {
+        tile.element.textContent = "";
+        tile.element.classList.add("concealed");
+        tile.element.setAttribute("aria-label", `Hidden number tile`);
+      }
+
+      statusText.textContent = `Find ${game.expected}`;
+      timeText.textContent = "0.0s";
+      timerBar.style.transform = "scaleX(1)";
+    }
+
+    function completeRound() {
+      game.phase = "success";
+      game.combo += 1;
+
+      const completedLevel = game.level;
+      if (completedLevel > game.best) {
+        game.best = completedLevel;
+        saveBestLevel(game.best);
+      }
+
+      updateHud();
+      showToast(`Level ${completedLevel} Clear`);
+      flashScreen("success");
+      pulseBoard();
+      playSuccessSound();
+      vibrate(30);
+
+      window.setTimeout(() => {
+        if (game.phase !== "success") return;
+        game.level += 1;
+        startRound();
+      }, CONFIG.successDelayMs);
+    }
+
+    function failRound(clickedTile) {
+      game.phase = "failed";
+      game.combo = 0;
+
+      revealTilesAfterFailure(clickedTile);
+      shakeScreen();
+      flashScreen("error");
+      playErrorSound();
+      vibrate([70, 45, 70]);
+
+      failMessage.textContent = `You tapped ${clickedTile.number}, but the next number was ${game.expected}.`;
+      failLevel.textContent = String(game.level);
+      failExpected.textContent = String(game.expected);
+      failBest.textContent = String(game.best);
+
+      window.setTimeout(() => {
+        failOverlay.classList.remove("hidden");
+      }, 430);
+    }
+
+    /**
+     * ============================================================
+     * TILE GENERATION / LAYOUT
+     * ============================================================
+     */
+    function clearBoard() {
+      board.innerHTML = "";
+      game.tiles = [];
+    }
+
+    function generateTiles(count) {
+      const layout = createResponsiveLayout(count);
+      board.style.setProperty("--tile-size", `${layout.tileSize}px`);
+
+      const positions = chooseRandomPositions(layout.cells, count);
+
+      for (let number = 1; number <= count; number++) {
+        const position = positions[number - 1];
+        const tile = createTile(number, position);
+        game.tiles.push(tile);
+        board.appendChild(tile.element);
+      }
+    }
+
+    function createTile(number, position) {
+      const element = document.createElement("button");
+
+      element.className = "tile";
+      element.type = "button";
+      element.textContent = String(number);
+      element.dataset.number = String(number);
+      element.style.left = `${position.x}%`;
+      element.style.top = `${position.y}%`;
+      element.style.animationDelay = `${Math.min(number * 22, 280)}ms`;
+      element.setAttribute("aria-label", `Number ${number}`);
+
+      element.addEventListener("click", () => handleTileClick(number));
+
+      return {
+        number,
+        element,
+        position
+      };
+    }
+
+    function createResponsiveLayout(count) {
+      const rect = board.getBoundingClientRect();
+      const width = Math.max(rect.width, 320);
+      const height = Math.max(rect.height, 300);
+      const aspect = width / height;
+
+      let cols = Math.ceil(Math.sqrt(count * aspect)) + 1;
+      let rows = Math.ceil(count / cols) + 1;
+
+      cols = clamp(cols, 3, 10);
+      rows = clamp(rows, 3, 10);
+
+      while (cols * rows < count) {
+        if (cols <= rows) cols++;
+        else rows++;
+      }
+
+      const gap = CONFIG.tileGap;
+      const tileSize = clamp(
+        Math.min(
+          (width - gap * (cols + 1)) / cols,
+          (height - gap * (rows + 1)) / rows
+        ) * 0.86,
+        CONFIG.minTileSize,
+        CONFIG.maxTileSize
+      );
+
+      const cells = [];
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const cellWidth = 100 / cols;
+          const cellHeight = 100 / rows;
+
+          const jitterX = randomBetween(-cellWidth * 0.13, cellWidth * 0.13);
+          const jitterY = randomBetween(-cellHeight * 0.13, cellHeight * 0.13);
+
+          cells.push({
+            x: clamp((col + 0.5) * cellWidth + jitterX, 7, 93),
+            y: clamp((row + 0.5) * cellHeight + jitterY, 8, 92)
+          });
+        }
+      }
+
+      return { cells, tileSize };
+    }
+
+    function chooseRandomPositions(cells, count) {
+      const shuffled = shuffle([...cells]);
+      return shuffled.slice(0, count);
+    }
+
+    function refreshTileSize() {
+      if (!game.tiles.length) return;
+
+      const layout = createResponsiveLayout(game.level);
+      board.style.setProperty("--tile-size", `${layout.tileSize}px`);
+    }
+
+    /**
+     * ============================================================
+     * INPUT HANDLING
+     * ============================================================
+     */
+    function handleTileClick(number) {
+      if (game.phase !== "playing") return;
+
+      const tile = game.tiles.find(item => item.number === number);
+      if (!tile || tile.element.classList.contains("cleared")) return;
+
+      if (number !== game.expected) {
+        failRound(tile);
+        return;
+      }
+
+      markTileCorrect(tile);
+
+      playClickSound(number);
+      vibrate(12);
+
+      game.expected += 1;
+
+      if (game.expected > game.level) {
+        completeRound();
+      } else {
+        statusText.textContent = `Find ${game.expected}`;
+      }
+    }
+
+    function markTileCorrect(tile) {
+      tile.element.classList.remove("concealed");
+      tile.element.classList.add("correct");
+      tile.element.textContent = String(tile.number);
+      tile.element.setAttribute("aria-label", `Correct number ${tile.number}`);
+      tile.element.disabled = true;
+
+      window.setTimeout(() => {
+        tile.element.classList.add("cleared");
+      }, 145);
+    }
+
+    function revealTilesAfterFailure(clickedTile) {
+      for (const tile of game.tiles) {
+        tile.element.classList.remove("concealed");
+        tile.element.textContent = String(tile.number);
+        tile.element.disabled = true;
+
+        if (!tile.element.classList.contains("correct")) {
+          tile.element.classList.add("revealed");
+        }
+      }
+
+      clickedTile.element.classList.add("wrong");
+
+      const expectedTile = game.tiles.find(tile => tile.number === game.expected);
+      if (expectedTile && expectedTile !== clickedTile) {
+        expectedTile.element.classList.add("hint");
+      }
+    }
+
+    /**
+     * ============================================================
+     * HUD / ANIMATION LOOP
+     * ============================================================
+     */
+    function tick(now) {
+      if (game.phase === "preview") {
+        const elapsed = now - game.previewStart;
+        const remaining = Math.max(0, CONFIG.previewDurationMs - elapsed);
+        const percent = clamp(remaining / CONFIG.previewDurationMs, 0, 1);
+
+        timerBar.style.transform = `scaleX(${percent})`;
+        timeText.textContent = `${(remaining / 1000).toFixed(1)}s`;
+      }
+
+      if (game.phase === "playing") {
+        const elapsed = now - game.playStart;
+        const percent = clamp(1 - elapsed / game.speedBonusWindowMs, 0, 1);
+
+        timerBar.style.transform = `scaleX(${percent})`;
+        timeText.textContent = `${(elapsed / 1000).toFixed(1)}s`;
+      }
+
+      game.animationFrame = requestAnimationFrame(tick);
+    }
+
+    function updateHud() {
+      levelText.textContent = String(game.level);
+      bestText.textContent = String(game.best);
+      comboText.textContent = String(game.combo);
+    }
+
+    function calculateSpeedBonusWindow(level) {
+      return clamp(5000 + level * 420, 5000, 14000);
+    }
+
+    /**
+     * ============================================================
+     * VISUAL FEEDBACK
+     * ============================================================
+     */
+    function shakeScreen() {
+      app.classList.remove("shake");
+      void app.offsetWidth;
+      app.classList.add("shake");
+
+      window.setTimeout(() => {
+        app.classList.remove("shake");
+      }, 360);
+    }
+
+    function flashScreen(type) {
+      flash.className = "flash";
+      void flash.offsetWidth;
+      flash.classList.add(type);
+    }
+
+    function pulseBoard() {
+      board.classList.remove("success-pulse");
+      void board.offsetWidth;
+      board.classList.add("success-pulse");
+
+      window.setTimeout(() => {
+        board.classList.remove("success-pulse");
+      }, 460);
+    }
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.remove("show");
+      void toast.offsetWidth;
+      toast.classList.add("show");
+    }
+
+    function vibrate(pattern) {
+      if (!CONFIG.enableVibration) return;
+      if ("vibrate" in navigator) navigator.vibrate(pattern);
+    }
+
+    /**
+     * ============================================================
+     * LOCAL STORAGE
+     * ============================================================
+     */
+    function loadBestLevel() {
+      try {
+        return Number(localStorage.getItem(CONFIG.localStorageKey) || 0);
+      } catch {
+        return 0;
+      }
+    }
+
+    function saveBestLevel(level) {
+      try {
+        localStorage.setItem(CONFIG.localStorageKey, String(level));
+      } catch {
+        // localStorage may be unavailable in some private browsing modes.
+      }
+    }
+
+    /**
+     * ============================================================
+     * UTILITIES
+     * ============================================================
+     */
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function randomBetween(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+
+      return array;
+    }
+
+    init();
+  </script>
+</body>
+</html>
