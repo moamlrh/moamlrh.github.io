@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chill Particle Sandbox</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none; /* Prevents accidental text highlighting while dragging */
+        }
+        
+        #controls {
+            padding: 20px;
+            background: #1e1e1e;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        canvas {
+            flex-grow: 1;
+            display: block;
+            cursor: crosshair;
+        }
+
+        button, select, input {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #2d2d2d;
+            color: white;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover, select:hover {
+            background: #444;
+        }
+
+        button:active {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <div class="control-group">
+            <label for="gravity">Gravity</label>
+            <select id="gravity">
+                <option value="down">Down</option>
+                <option value="up">Up</option>
+                <option value="zero">Zero (Floating)</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="size">Particle Size (<span id="sizeVal">15</span>)</label>
+            <input type="range" id="size" min="5" max="40" value="15">
+        </div>
+        
+        <div class="control-group">
+            <label for="bounce">Bounciness (<span id="bounceVal">0.8</span>)</label>
+            <input type="range" id="bounce" min="0" max="1.2" step="0.1" value="0.8">
+        </div>
+        
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button id="clear">Clear Screen</button>
+        </div>
+    </div>
+
+    <script>
+        // Set up Matter.js aliases
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Composite = Matter.Composite,
+              World = Matter.World,
+              Mouse = Matter.Mouse,
+              Events = Matter.Events;
+
+        // 1. Create the engine and world
+        const engine = Engine.create();
+        const world = engine.world;
+        
+        // 2. Set up the renderer (the canvas visualizer)
+        const render = Render.create({
+            element: document.body,
+            engine: engine,
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight - document.getElementById('controls').offsetHeight,
+                wireframes: false, // Set to true to see hitboxes instead of colors
+                background: '#121212'
+            }
+        });
+
+        Render.run(render);
+        
+        // 3. Create the runner (keeps the physics simulation ticking)
+        const runner = Runner.create();
+        Runner.run(runner, engine);
+
+        // 4. Build the Invisible Walls (so particles don't fall off screen)
+        let boundaries = [];
+        function createBoundaries() {
+            const width = render.options.width;
+            const height = render.options.height;
+            const thick = 100; // Extra thick so fast particles don't glitch through
+            boundaries = [
+                Bodies.rectangle(width / 2, -thick / 2, width, thick, { isStatic: true }), // Top
+                Bodies.rectangle(width / 2, height + thick / 2, width, thick, { isStatic: true }), // Bottom
+                Bodies.rectangle(-thick / 2, height / 2, thick, height, { isStatic: true }), // Left
+                Bodies.rectangle(width + thick / 2, height / 2, thick, height, { isStatic: true }) // Right
+            ];
+            World.add(world, boundaries);
+        }
+        createBoundaries();
+
+        // Ensure walls resize if the browser window resizes
+        window.addEventListener('resize', () => {
+            render.canvas.width = window.innerWidth;
+            render.canvas.height = window.innerHeight - document.getElementById('controls').offsetHeight;
+            render.options.width = render.canvas.width;
+            render.options.height = render.canvas.height;
+            World.remove(world, boundaries);
+            createBoundaries();
+        });
+
+        // 5. Wire up the UI Controls
+        const gravitySelect = document.getElementById('gravity');
+        const sizeSlider = document.getElementById('size');
+        const sizeVal = document.getElementById('sizeVal');
+        const bounceSlider = document.getElementById('bounce');
+        const bounceVal = document.getElementById('bounceVal');
+        const clearBtn = document.getElementById('clear');
+
+        // Gravity logic
+        gravitySelect.addEventListener('change', (e) => {
+            if (e.target.value === 'down') engine.gravity.y = 1;
+            else if (e.target.value === 'up') engine.gravity.y = -1;
+            else engine.gravity.y = 0;
+        });
+
+        // Update UI text for sliders
+        sizeSlider.addEventListener('input', (e) => sizeVal.innerText = e.target.value);
+        bounceSlider.addEventListener('input', (e) => bounceVal.innerText = e.target.value);
+
+        // Nuke the screen
+        clearBtn.addEventListener('click', () => {
+            World.clear(world); // Wipes everything
+            Engine.clear(engine);
+            createBoundaries(); // Bring the walls back
+        });
+
+        // 6. Particle Spawning Logic
+        const mouse = Mouse.create(render.canvas);
+        let isMouseDown = false;
+
+        // Using the Matter.js physics tick to spawn continuously while dragged
+        Events.on(engine, 'beforeUpdate', () => {
+            if (isMouseDown) {
+                const size = parseInt(sizeSlider.value);
+                const bounce = parseFloat(bounceSlider.value);
+                
+                // Random offset so they don't perfectly stack inside each other
+                const x = mouse.position.x + (Math.random() - 0.5) * 10;
+                const y = mouse.position.y + (Math.random() - 0.5) * 10;
+
+                // Pick a random bright color
+                const hue = Math.floor(Math.random() * 360);
+                
+                const particle = Bodies.circle(x, y, size, {
+                    restitution: bounce, // Bounciness
+                    friction: 0.005,
+                    density: 0.04,
+                    render: {
+                        fillStyle: `hsl(${hue}, 80%, 65%)`
+                    }
+                });
+                
+                World.add(world, particle);
+            }
+        });
+
+        // Track mouse clicks anywhere on the canvas
+        render.canvas.addEventListener('mousedown', () => isMouseDown = true);
+        window.addEventListener('mouseup', () => isMouseDown = false);
+        
+        // Touch support for trackpads/screens
+        render.canvas.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); // Stop scrolling on mobile/trackpad swipe
+            isMouseDown = true; 
+        }, { passive: false });
+        window.addEventListener('touchend', () => isMouseDown = false);
+
+    </script>
+</body>
+</html>
