@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Tunneling - A Quantum Platformer</title>
+    <style>
+        :root {
+            --bg: #06060f;
+            --surface: #0d0d1a;
+            --cyan: #00e5ff;
+            --magenta: #e040ff;
+            --gold: #ffd740;
+            --danger: #ff3d5c;
+            --text: #c8ccd8;
+            --text-dim: #7a7f8c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            overflow: hidden;
+            font-family: 'Courier New', 'Source Code Pro', 'Consolas', monospace;
+            touch-action: manipulation;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 1200px;
+            max-height: 800px;
+            overflow: hidden;
+            border: 1px solid #1a1a2e;
+            box-shadow: 0 0 60px rgba(0, 229, 255, 0.08), 0 0 120px rgba(224, 64, 255, 0.04);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: auto;
+        }
+
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-panel {
+            background: rgba(10, 10, 20, 0.85);
+            border: 1px solid #1a1a35;
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-size: 11px;
+            line-height: 1.5;
+            backdrop-filter: blur(4px);
+            min-width: 140px;
+        }
+
+        .hud-panel .label {
+            color: var(--text-dim);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 2px;
+        }
+        .hud-panel .value {
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .hud-panel .value.cyan {
+            color: var(--cyan);
+        }
+        .hud-panel .value.magenta {
+            color: var(--magenta);
+        }
+        .hud-panel .value.gold {
+            color: var(--gold);
+        }
+
+        #state-indicator {
+            transition: color 0.3s, text-shadow 0.3s;
+        }
+
+        /* Tooltip */
+        #tooltip {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 22, 0.9);
+            border: 1px solid #2a2a45;
+            border-radius: 6px;
+            padding: 8px 16px;
+            color: var(--text-dim);
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            pointer-events: none;
+            z-index: 10;
+            text-align: center;
+            max-width: 90%;
+            transition: opacity 0.4s;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 20;
+            pointer-events: all;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .ctrl-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 2px solid #2a2a45;
+            background: rgba(13, 13, 26, 0.8);
+            color: var(--text);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            backdrop-filter: blur(2px);
+            touch-action: manipulation;
+        }
+        .ctrl-btn:active {
+            background: rgba(0, 229, 255, 0.2);
+            border-color: var(--cyan);
+            transform: scale(0.92);
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+        }
+        .ctrl-btn.shift-btn {
+            width: 64px;
+            height: 64px;
+            border-color: #5a2a7a;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            background: rgba(40, 10, 60, 0.7);
+            color: var(--magenta);
+            animation: shift-pulse 2s ease-in-out infinite;
+        }
+        @keyframes shift-pulse {
+            0%,
+            100% {
+                box-shadow: 0 0 15px rgba(224, 64, 255, 0.25);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(224, 64, 255, 0.55);
+            }
+        }
+
+        @media (min-width: 768px) {
+            #mobile-controls {
+                bottom: 20px;
+                gap: 14px;
+            }
+            .ctrl-btn {
+                width: 56px;
+                height: 56px;
+                font-size: 22px;
+            }
+            .ctrl-btn.shift-btn {
+                width: 70px;
+                height: 70px;
+                font-size: 14px;
+            }
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            #mobile-controls {
+                opacity: 0.55;
+                transition: opacity 0.3s;
+            }
+            #mobile-controls:hover {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud">
+            <div class="hud-panel" id="hud-left">
+                <div class="label">State</div>
+                <div class="value cyan" id="state-indicator">● PARTICLE</div>
+                <div class="label" style="margin-top:4px;">Wave Position</div>
+                <div class="value" id="position-display" style="font-size:12px;">x: 100 (exact)</div>
+            </div>
+            <div class="hud-panel" id="hud-right" style="text-align:right;">
+                <div class="label">Tunnel Probability</div>
+                <div class="value gold" id="prob-display">--</div>
+                <div class="label" style="margin-top:4px;">Score</div>
+                <div class="value" id="score-display" style="font-size:16px;">0</div>
+            </div>
+        </div>
+        <div id="tooltip">Press <b>Q</b> or tap <b>SHIFT</b> to toggle between Particle and Wave states</div>
+        <div id="mobile-controls">
+            <button class="ctrl-btn" id="btn-left" title="Move Left">◀</button>
+            <button class="ctrl-btn" id="btn-jump" title="Jump">▲</button>
+            <button class="ctrl-btn shift-btn" id="btn-shift" title="Shift State">SHIFT</button>
+            <button class="ctrl-btn" id="btn-right" title="Move Right">▶</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ─────────────────────────────────────
+            // DOM ELEMENTS
+            // ─────────────────────────────────────
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const container = document.getElementById('game-container');
+            const stateIndicator = document.getElementById('state-indicator');
+            const positionDisplay = document.getElementById('position-display');
+            const probDisplay = document.getElementById('prob-display');
+            const scoreDisplay = document.getElementById('score-display');
+            const tooltip = document.getElementById('tooltip');
+
+            // Mobile buttons
+            const btnLeft = document.getElementById('btn-left');
+            const btnRight = document.getElementById('btn-right');
+            const btnJump = document.getElementById('btn-jump');
+            const btnShift = document.getElementById('btn-shift');
+
+            // ─────────────────────────────────────
+            // CANVAS SETUP
+            // ─────────────────────────────────────
+            let W, H;
+
+            function resizeCanvas() {
+                const rect = container.getBoundingClientRect();
+                W = rect.width;
+                H = rect.height;
+                canvas.width = W * (window.devicePixelRatio || 1);
+                canvas.height = H * (window.devicePixelRatio || 1);
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // ─────────────────────────────────────
+            // CONSTANTS & CONFIGURATION
+            // ─────────────────────────────────────
+            const GRAVITY = 0.55;
+            const PLAYER_SPEED = 4.5;
+            const JUMP_VELOCITY = -11.5;
+            const PLAYER_RADIUS = 14;
+            const STATE_COOLDOWN = 18; // frames (~0.3s at 60fps)
+            const GROUND_Y_RATIO = 0.82; // ground at 82% of canvas height
+            const KILL_ZONE_BELOW = 200; // pixels below ground before death
+
+            // ─────────────────────────────────────
+            // AUDIO (Procedural via Web Audio API)
+            // ─────────────────────────────────────
+            let audioCtx = null;
+
+            function getAudioCtx() {
+                if (!audioCtx) {
+                    audioCtx = new(window.AudioContext || window.webkitAudioContext)();
+                }
+                return audioCtx;
+            }
+
+            function playBeep(freq, duration, type = 'sine', vol = 0.08) {
+                try {
+                    const ctx = getAudioCtx();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + duration);
+                } catch (e) { /* silent */ }
+            }
+
+            function sfxShift() { playBeep(180, 0.15, 'sine', 0.06);
+                playBeep(360, 0.1, 'triangle', 0.04); }
+
+            function sfxTunnelSuccess() { playBeep(440, 0.08, 'sine', 0.05);
+                playBeep(660, 0.12, 'triangle', 0.06);
+                playBeep(880, 0.15, 'sine', 0.04); }
+
+            function sfxTunnelFail() { playBeep(80, 0.25, 'sawtooth', 0.07);
+                playBeep(55, 0.3, 'triangle', 0.05); }
+
+            function sfxJump() { playBeep(200, 0.1, 'triangle', 0.03); }
+
+            function sfxDeath() { playBeep(40, 0.5, 'sawtooth', 0.1);
+                playBeep(30, 0.6, 'triangle', 0.07); }
+
+            // ─────────────────────────────────────
+            // PARTICLE SYSTEM (Visual effects)
+            // ─────────────────────────────────────
+            class Particle {
+                constructor(x, y, vx, vy, color, life = 40, size = 3) {
+                    this.x = x;
+                    this.y = y;
+                    this.vx = vx;
+                    this.vy = vy;
+                    this.color = color;
+                    this.life = life;
+                    this.maxLife = life;
+                    this.size = size;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.vy += 0.04;
+                    this.life--;
+                }
+                get alpha() { return Math.max(0, this.life / this.maxLife); }
+                get alive() { return this.life > 0; }
+                draw(ctx) {
+                    const a = this.alpha;
+                    const s = this.size * (0.5 + 0.5 * a);
+                    ctx.save();
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = s * 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, s, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            const particles = [];
+
+            function spawnBurst(x, y, count, color, spread = 3, life = 35) {
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * spread;
+                    particles.push(new Particle(
+                        x, y,
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed - 2,
+                        color,
+                        life + Math.random() * 20,
+                        1.5 + Math.random() * 4
+                    ));
+                }
+            }
+
+            function spawnWaveRipple(x, y, color) {
+                for (let i = 0; i < 16; i++) {
+                    const angle = (i / 16) * Math.PI * 2;
+                    const speed = 2 + Math.random() * 4;
+                    particles.push(new Particle(
+                        x, y,
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed,
+                        color,
+                        25 + Math.random() * 15,
+                        2 + Math.random() * 3
+                    ));
+                }
+            }
+
+            // ─────────────────────────────────────
+            // TUNNELING PROBABILITY CALCULATOR
+            // ─────────────────────────────────────
+            /**
+             * Calculates the quantum tunneling probability for a particle
+             * encountering a potential barrier, using a simplified version
+             * of the Wentzel–Kramers–Brillouin (WKB) approximation.
+             *
+             * In quantum mechanics, the tunneling probability T is approximately:
+             *   T ≈ exp(-2 * κ * d)
+             *
+             * where:
+             *   κ = sqrt(2m(V - E)) / ħ   (the decay constant inside the barrier)
+             *   d = barrier thickness
+             *   V = barrier potential energy (height)
+             *   E = particle energy
+             *   m = particle mass
+             *   ħ = reduced Planck constant
+             *
+             * For gameplay, we normalize m=1, E=1, and use an effective ħ
+             * tuned for enjoyable difficulty scaling.
+             *
+             * @param {number} barrierThickness - Width of the barrier in pixels
+             * @param {number} barrierEnergy - Energy level of the barrier (1.0 to 5.0)
+             * @returns {number} Probability of successful tunneling (0.05 to 1.0)
+             */
+            function calculateTunnelingProbability(barrierThickness, barrierEnergy) {
+                // Effective ħ constant — higher = easier tunneling (tuned for gameplay)
+                const HBAR_EFFECTIVE = 48;
+                const PARTICLE_ENERGY = 1.0; // Normalized incident particle energy
+                const MASS = 1.0; // Normalized particle mass
+
+                // Potential difference: V - E (must be positive for a barrier)
+                const potentialDifference = Math.max(0.001, barrierEnergy - PARTICLE_ENERGY);
+
+                // Decay constant κ = sqrt(2m(V-E)) / ħ
+                const kappa = Math.sqrt(2 * MASS * potentialDifference) / HBAR_EFFECTIVE;
+
+                // Transmission probability: T ≈ exp(-2κd)
+                const rawProbability = Math.exp(-2 * kappa * barrierThickness);
+
+                // Clamp to [5%, 100%] — there's always a tiny chance, and never certainty
+                const probability = Math.max(0.05, Math.min(1.0, rawProbability));
+
+                return probability;
+            }
+
+            // ─────────────────────────────────────
+            // GAME OBJECTS
+            // ─────────────────────────────────────
+
+            // --- Platform ---
+            class Platform {
+                constructor(x, y, width, height = 16) {
+                    this.x = x;
+                    this.y = y;
+                    this.width = width;
+                    this.height = height;
+                    this.isGround = false;
+                }
+                get left() { return this.x; }
+                get right() { return this.x + this.width; }
+                get top() { return this.y; }
+                get bottom() { return this.y + this.height; }
+
+                draw(ctx, camX) {
+                    const sx = this.x - camX;
+                    const sy = this.y;
+                    // Only draw if on screen
+                    if (sx + this.width < -20 || sx > W + 20) return;
+                    if (sy + this.height < -20 || sy > H + 20) return;
+
+                    const grad = ctx.createLinearGradient(sx, sy, sx, sy + this.height);
+                    grad.addColorStop(0, '#1e1e35');
+                    grad.addColorStop(0.5, '#252540');
+                    grad.addColorStop(1, '#18182a');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(sx, sy, this.width, this.height);
+
+                    // Top edge glow
+                    ctx.strokeStyle = 'rgba(120,140,200,0.5)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(sx + this.width, sy);
+                    ctx.stroke();
+
+                    // Subtle grid lines on ground
+                    if (this.isGround && this.width > 200) {
+                        ctx.strokeStyle = 'rgba(120,140,200,0.12)';
+                        ctx.lineWidth = 0.5;
+                        for (let gx = Math.floor(sx / 40) * 40; gx < sx + this.width; gx += 40) {
+                            ctx.beginPath();
+                            ctx.moveTo(gx, sy + 4);
+                            ctx.lineTo(gx, sy + this.height - 4);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // --- Barrier (Potential Wall) ---
+            class Barrier {
+                constructor(x, y, thickness, height, energy = 1.0) {
+                    this.x = x;
+                    this.y = y;
+                    this.thickness = thickness;
+                    this.height = height;
+                    this.energy = energy; // 1 (low) to 5 (high)
+                    this.id = Barrier._nextId++;
+                }
+                get left() { return this.x; }
+                get right() { return this.x + this.thickness; }
+                get top() { return this.y; }
+                get bottom() { return this.y + this.height; }
+
+                getColor() {
+                    // Color gradient based on energy level
+                    const t = (this.energy - 1) / 4; // 0 to 1
+                    const r = Math.floor(0 + t * 255);
+                    const g = Math.floor(220 - t * 200);
+                    const b = Math.floor(140 - t * 100);
+                    return { r, g, b, hex: `rgb(${r},${g},${b})` };
+                }
+
+                draw(ctx, camX) {
+                    const sx = this.x - camX;
+                    const sy = this.y;
+                    if (sx + this.thickness < -30 || sx > W + 30) return;
+                    if (sy + this.height < -30 || sy > H + 30) return;
+
+                    const col = this.getColor();
+
+                    // Barrier body with gradient
+                    const grad = ctx.createLinearGradient(sx, 0, sx + this.thickness, 0);
+                    grad.addColorStop(0, `rgba(${col.r},${col.g},${col.b},0.7)`);
+                    grad.addColorStop(0.3, `rgba(${col.r},${col.g},${col.b},0.9)`);
+                    grad.addColorStop(0.7, `rgba(${col.r},${col.g},${col.b},0.9)`);
+                    grad.addColorStop(1, `rgba(${col.r},${col.g},${col.b},0.7)`);
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(sx, sy, this.thickness, this.height);
+
+                    // Glowing edges
+                    ctx.strokeStyle = `rgba(${col.r},${col.g},${col.b},0.9)`;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(sx - 1, sy - 1, this.thickness + 2, this.height + 2);
+
+                    // Inner glow lines
+                    ctx.strokeStyle = `rgba(255,255,255,0.3)`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(sx + 3, sy + 3);
+                    ctx.lineTo(sx + 3, sy + this.height - 3);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(sx + this.thickness - 3, sy + 3);
+                    ctx.lineTo(sx + this.thickness - 3, sy + this.height - 3);
+                    ctx.stroke();
+
+                    // Energy label
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = '9px "Courier New", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`E=${this.energy.toFixed(1)}`, sx + this.thickness / 2, sy - 8);
+
+                    // Thickness indicator at top
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.font = '8px "Courier New", monospace';
+                    ctx.fillText(`${this.thickness}px`, sx + this.thickness / 2, sy + this.height + 14);
+                }
+
+                static _nextId = 0;
+            }
+
+            // ─────────────────────────────────────
+            // PLAYER
+            // ─────────────────────────────────────
+            class Player {
+                constructor(x, y) {
+                    this.x = x;
+                    this.y = y;
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.radius = PLAYER_RADIUS;
+                    this.isWaveState = false;
+                    this.onGround = false;
+                    this.stateCooldown = 0;
+                    this.tunneledBarriers = new Set(); // Barriers successfully tunneled this wave session
+                    this.waveJitterX = 0;
+                    this.waveJitterY = 0;
+                    this.stunTimer = 0;
+                    this.facingRight = true;
+                }
+
+                get left() { return this.x - this.radius; }
+                get right() { return this.x + this.radius; }
+                get top() { return this.y - this.radius; }
+                get bottom() { return this.y + this.radius; }
+
+                toggleState() {
+                    if (this.stateCooldown > 0) return;
+                    this.isWaveState = !this.isWaveState;
+                    this.stateCooldown = STATE_COOLDOWN;
+                    this.tunneledBarriers.clear();
+                    if (this.isWaveState) {
+                        sfxShift();
+                        spawnWaveRipple(this.x, this.y, '#e040ff');
+                    } else {
+                        sfxShift();
+                        spawnWaveRipple(this.x, this.y, '#00e5ff');
+                        // If inside a barrier when switching back, eject
+                        this._ejectFromBarriers();
+                    }
+                }
+
+                _ejectFromBarriers() {
+                    for (const barrier of barriers) {
+                        if (this._overlapsBarrier(barrier)) {
+                            // Push to nearest side
+                            const distLeft = this.right - barrier.left;
+                            const distRight = barrier.right - this.left;
+                            if (distLeft < distRight) {
+                                this.x = barrier.left - this.radius;
+                            } else {
+                                this.x = barrier.right + this.radius;
+                            }
+                            this.vx *= -0.5;
+                        }
+                    }
+                }
+
+                _overlapsBarrier(barrier) {
+                    return (
+                        this.right > barrier.left &&
+                        this.left < barrier.right &&
+                        this.bottom > barrier.top &&
+                        this.top < barrier.bottom
+                    );
+                }
+
+                update(platforms, barriersList) {
+                    // Cooldown timer
+                    if (this.stateCooldown > 0) this.stateCooldown--;
+                    if (this.stunTimer > 0) {
+                        this.stunTimer--;
+                        this.vx *= 0.85;
+                    }
+
+                    // Apply gravity
+                    this.vy += GRAVITY;
+                    if (this.vy > 15) this.vy = 15; // Terminal velocity
+
+                    // Update position
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Friction
+                    if (!this.isWaveState && this.onGround) {
+                        this.vx *= 0.82;
+                    } else if (!this.isWaveState) {
+                        this.vx *= 0.95;
+                    } else {
+                        this.vx *= 0.94;
+                    }
+
+                    // Wave state jitter (visual probability distribution)
+                    if (this.isWaveState) {
+                        this.waveJitterX += (Math.random() - 0.5) * 3;
+                        this.waveJitterY += (Math.random() - 0.5) * 2;
+                        this.waveJitterX *= 0.7;
+                        this.waveJitterY *= 0.7;
+                    } else {
+                        this.waveJitterX *= 0.3;
+                        this.waveJitterY *= 0.3;
+                    }
+
+                    // Collision with platforms (only in particle state)
+                    this.onGround = false;
+                    if (!this.isWaveState) {
+                        for (const plat of platforms) {
+                            this._resolvePlatformCollision(plat);
+                        }
+                    }
+
+                    // Barrier interactions
+                    if (this.isWaveState) {
+                        for (const barrier of barriersList) {
+                            if (this._overlapsBarrier(barrier)) {
+                                if (!this.tunneledBarriers.has(barrier.id)) {
+                                    this._attemptTunnel(barrier);
+                                }
+                                // If tunneled, allow passage (no collision)
+                            }
+                        }
+                    } else {
+                        // Particle state: collide with barriers
+                        for (const barrier of barriersList) {
+                            if (this._overlapsBarrier(barrier)) {
+                                this._resolveBarrierCollision(barrier);
+                            }
+                        }
+                    }
+
+                    // Kill zone
+                    if (this.y > getGroundY() + KILL_ZONE_BELOW) {
+                        return 'dead';
+                    }
+                    // Also kill if too far above (went off world)
+                    if (this.y < -300) {
+                        return 'dead';
+                    }
+                    return 'alive';
+                }
+
+                _resolvePlatformCollision(plat) {
+                    // Only resolve if falling onto the platform
+                    const prevBottom = this.bottom - this.vy;
+                    if (
+                        this.right > plat.left &&
+                        this.left < plat.right &&
+                        prevBottom <= plat.top + 3 &&
+                        this.bottom >= plat.top &&
+                        this.vy >= 0
+                    ) {
+                        this.y = plat.top - this.radius;
+                        this.vy = 0;
+                        this.onGround = true;
+                    }
+                }
+
+                _resolveBarrierCollision(barrier) {
+                    // Push player out of barrier
+                    const overlapLeft = this.right - barrier.left;
+                    const overlapRight = barrier.right - this.left;
+                    if (overlapLeft < overlapRight) {
+                        this.x = barrier.left - this.radius;
+                    } else {
+                        this.x = barrier.right + this.radius;
+                    }
+                    this.vx *= -0.3;
+                }
+
+                _attemptTunnel(barrier) {
+                    const probability = calculateTunnelingProbability(barrier.thickness, barrier.energy);
+                    const roll = Math.random();
+
+                    // Store for HUD display
+                    window._lastTunnelProb = probability;
+                    window._lastTunnelBarrier = barrier;
+
+                    if (roll <= probability) {
+                        // Success!
+                        this.tunneledBarriers.add(barrier.id);
+                        spawnBurst(
+                            this.x,
+                            this.y,
+                            25,
+                            '#ffd740',
+                            5,
+                            30
+                        );
+                        sfxTunnelSuccess();
+                        window._lastTunnelResult = 'success';
+                    } else {
+                        // Failure — reflect!
+                        const overlapLeft = this.right - barrier.left;
+                        const overlapRight = barrier.right - this.left;
+                        if (overlapLeft < overlapRight) {
+                            this.x = barrier.left - this.radius - 2;
+                            this.vx = -Math.abs(this.vx) - 6;
+                        } else {
+                            this.x = barrier.right + this.radius + 2;
+                            this.vx = Math.abs(this.vx) + 6;
+                        }
+                        this.vy += -3;
+                        this.stunTimer = 10;
+                        spawnBurst(this.x, this.y, 20, '#ff3d5c', 4, 25);
+                        sfxTunnelFail();
+                        window._lastTunnelResult = 'fail';
+                    }
+                }
+
+                jump() {
+                    if (!this.isWaveState && this.onGround && this.stunTimer <= 0) {
+                        this.vy = JUMP_VELOCITY;
+                        this.onGround = false;
+                        sfxJump();
+                    }
+                }
+
+                draw(ctx, camX) {
+                    const sx = this.x - camX + (this.isWaveState ? this.waveJitterX : 0);
+                    const sy = this.y + (this.isWaveState ? this.waveJitterY : 0);
+
+                    if (sx + this.radius < -30 || sx - this.radius > W + 30) return;
+                    if (sy + this.radius < -30 || sy - this.radius > H + 30) return;
+
+                    if (this.isWaveState) {
+                        // ── WAVE STATE: fuzzy, glowing, multiple offset copies ──
+                        const copies = [
+                            { ox: 0, oy: 0, alpha: 0.55, size: 1.0 },
+                            { ox: this.waveJitterX * 1.5, oy: this.waveJitterY * 1.5, alpha: 0.3, size: 0.85 },
+                            { ox: -this.waveJitterX * 1.2, oy: -this.waveJitterY * 1.2, alpha: 0.25, size: 0.8 },
+                            { ox: this.waveJitterY * 1.8, oy: -this.waveJitterX * 1.8, alpha: 0.2, size: 0.75 },
+                            { ox: -this.waveJitterY * 1.4, oy: this.waveJitterX * 1.4, alpha: 0.18, size: 0.7 },
+                        ];
+
+                        for (const copy of copies) {
+                            ctx.save();
+                            ctx.globalAlpha = copy.alpha;
+                            const r = this.radius * copy.size;
+                            const grad = ctx.createRadialGradient(
+                                sx + copy.ox, sy + copy.oy, r * 0.2,
+                                sx + copy.ox, sy + copy.oy, r
+                            );
+                            grad.addColorStop(0, 'rgba(255,180,255,0.9)');
+                            grad.addColorStop(0.5, 'rgba(200,60,255,0.6)');
+                            grad.addColorStop(1, 'rgba(100,20,200,0)');
+                            ctx.fillStyle = grad;
+                            ctx.shadowColor = '#e040ff';
+                            ctx.shadowBlur = r * 2.5;
+                            ctx.beginPath();
+                            ctx.arc(sx + copy.ox, sy + copy.oy, r, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.restore();
+                        }
+
+                        // Core bright spot
+                        ctx.save();
+                        ctx.globalAlpha = 0.7;
+                        const coreGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, this.radius * 0.6);
+                        coreGrad.addColorStop(0, '#ffffff');
+                        coreGrad.addColorStop(0.5, '#e0a0ff');
+                        coreGrad.addColorStop(1, 'rgba(200,60,255,0)');
+                        ctx.fillStyle = coreGrad;
+                        ctx.shadowColor = '#ffffff';
+                        ctx.shadowBlur = 15;
+                        ctx.beginPath();
+                        ctx.arc(sx, sy, this.radius * 0.55, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    } else {
+                        // ── PARTICLE STATE: solid, defined ──
+                        const grad = ctx.createRadialGradient(sx - 2, sy - 3, this.radius * 0.1, sx, sy, this.radius);
+                        grad.addColorStop(0, '#ffffff');
+                        grad.addColorStop(0.4, '#00e5ff');
+                        grad.addColorStop(1, '#004466');
+                        ctx.fillStyle = grad;
+                        ctx.shadowColor = '#00e5ff';
+                        ctx.shadowBlur = 10;
+                        ctx.beginPath();
+                        ctx.arc(sx, sy, this.radius, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Highlight
+                        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                        ctx.beginPath();
+                        ctx.arc(sx - 4, sy - 5, this.radius * 0.3, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Orbit dot
+                        const orbitAngle = performance.now() * 0.004;
+                        const orbitR = this.radius + 6;
+                        const odx = sx + Math.cos(orbitAngle) * orbitR;
+                        const ody = sy + Math.sin(orbitAngle) * orbitR;
+                        ctx.fillStyle = '#ffffff';
+                        ctx.shadowBlur = 6;
+                        ctx.beginPath();
+                        ctx.arc(odx, ody, 2.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            // ─────────────────────────────────────
+            // LEVEL GENERATION
+            // ─────────────────────────────────────
+            function getGroundY() {
+                return H * GROUND_Y_RATIO;
+            }
+
+            let platforms = [];
+            let barriers = [];
+            let worldRightEdge = 0;
+
+            function generateLevel(startX = 0, length = 3000) {
+                const groundY = getGroundY();
+                const groundSegmentWidth = 400;
+                const newPlatforms = [];
+                const newBarriers = [];
+
+                // Create ground segments with occasional gaps
+                let cx = startX;
+                while (cx < startX + length) {
+                    const segWidth = groundSegmentWidth + Math.random() * 200;
+                    // Occasionally add a gap
+                    const gapChance = Math.min(0.35, (cx - startX) / (length * 2));
+                    if (Math.random() < gapChance && cx > startX + 300) {
+                        const gapWidth = 60 + Math.random() * 100;
+                        cx += gapWidth; // Skip ground for gap
+                        // Maybe add a small platform in the gap
+                        if (Math.random() < 0.5) {
+                            const platW = 80 + Math.random() * 120;
+                            const platX = cx - gapWidth / 2 - platW / 2;
+                            const platY = groundY + 40 + Math.random() * 60;
+                            const plat = new Platform(platX, platY, platW, 14);
+                            newPlatforms.push(plat);
+                        }
+                    }
+
+                    const ground = new Platform(cx, groundY, segWidth, H - groundY + 50);
+                    ground.isGround = true;
+                    newPlatforms.push(ground);
+
+                    // Place barriers on this ground segment
+                    const difficultyFactor = cx / 2000; // Increases with distance
+                    const numBarriers = Math.floor(Math.random() * 3) + (difficultyFactor > 1 ? 2 : 0);
+                    for (let b = 0; b < numBarriers; b++) {
+                        if (Math.random() < 0.55 + difficultyFactor * 0.3) {
+                            const bThickness = 18 + Math.random() * (30 + difficultyFactor * 50);
+                            const bEnergy = 1.0 + Math.random() * (1.5 + difficultyFactor * 2.5);
+                            const bHeight = 60 + Math.random() * 100;
+                            const bX = cx + 60 + Math.random() * (segWidth - 120 - bThickness);
+                            const bY = groundY - bHeight;
+                            const barrier = new Barrier(bX, bY, Math.min(bThickness, 130), bHeight, Math.min(bEnergy,
+                                5.0));
+                            newBarriers.push(barrier);
+                        }
+                    }
+
+                    // Floating platforms above ground
+                    if (Math.random() < 0.4) {
+                        const platW = 70 + Math.random() * 150;
+                        const platX = cx + Math.random() * (segWidth - platW);
+                        const platY = groundY - 90 - Math.random() * 140;
+                        const plat = new Platform(platX, platY, platW, 14);
+                        newPlatforms.push(plat);
+
+                        // Sometimes put a barrier on a floating platform
+                        if (Math.random() < 0.35 && platW > 100) {
+                            const bThickness = 15 + Math.random() * 40;
+                            const bEnergy = 1.2 + Math.random() * 2.5;
+                            const bX = platX + platW / 2 - bThickness / 2;
+                            const bY = platY - 50 - Math.random() * 60;
+                            newBarriers.push(new Barrier(bX, bY, bThickness, 50 + Math.random() * 60, Math.min(bEnergy,
+                                4.5)));
+                        }
+                    }
+
+                    cx += segWidth;
+                }
+
+                worldRightEdge = Math.max(worldRightEdge, cx);
+                return { platforms: newPlatforms, barriers: newBarriers };
+            }
+
+            function ensureLevelAhead(playerX) {
+                const bufferAhead = 2000;
+                if (playerX + bufferAhead > worldRightEdge - 500) {
+                    const gen = generateLevel(worldRightEdge, 2500);
+                    platforms.push(...gen.platforms);
+                    barriers.push(...gen.barriers);
+                }
+            }
+
+            function cleanupBehind(playerX) {
+                const cleanupDist = 1500;
+                platforms = platforms.filter(p => p.right > playerX - cleanupDist);
+                barriers = barriers.filter(b => b.right > playerX - cleanupDist);
+                // Also clean particles that are way off screen
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    if (particles[i].x < playerX - cleanupDist || particles[i].x > playerX + cleanupDist + 1000) {
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+            // ─────────────────────────────────────
+            // CAMERA
+            // ─────────────────────────────────────
+            class Camera {
+                constructor() {
+                    this.x = 0;
+                    this.y = 0;
+                    this.targetX = 0;
+                    this.targetY = 0;
+                    this.shakeX = 0;
+                    this.shakeY = 0;
+                    this.shakeDuration = 0;
+                    this.shakeIntensity = 0;
+                }
+
+                follow(playerX, playerY) {
+                    this.targetX = playerX - W * 0.4;
+                    this.targetY = Math.min(0, playerY - H * 0.5);
+                }
+
+                update() {
+                    this.x += (this.targetX - this.x) * 0.08;
+                    this.y += (this.targetY - this.y) * 0.06;
+                    if (this.shakeDuration > 0) {
+                        this.shakeX = (Math.random() - 0.5) * this.shakeIntensity * 2;
+                        this.shakeY = (Math.random() - 0.5) * this.shakeIntensity * 2;
+                        this.shakeDuration--;
+                        this.shakeIntensity *= 0.85;
+                    } else {
+                        this.shakeX = 0;
+                        this.shakeY = 0;
+                    }
+                }
+
+                triggerShake(intensity = 8, duration = 12) {
+                    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+                    this.shakeDuration = Math.max(this.shakeDuration, duration);
+                }
+
+                getX() { return this.x + this.shakeX; }
+                getY() { return this.y + this.shakeY; }
+            }
+
+            // ─────────────────────────────────────
+            // INPUT HANDLING
+            // ─────────────────────────────────────
+            const input = {
+                left: false,
+                right: false,
+                jumpPressed: false,
+                jumpWasPressed: false,
+                shiftPressed: false,
+                shiftWasPressed: false,
+            };
+
+            // Keyboard
+            window.addEventListener('keydown', (e) => {
+                switch (e.key.toLowerCase()) {
+                    case 'a':
+                    case 'arrowleft':
+                        input.left = true;
+                        e.preventDefault();
+                        break;
+                    case 'd':
+                    case 'arrowright':
+                        input.right = true;
+                        e.preventDefault();
+                        break;
+                    case 'w':
+                    case 'arrowup':
+                    case ' ':
+                        input.jumpPressed = true;
+                        e.preventDefault();
+                        break;
+                    case 'q':
+                    case 'e':
+                    case 'shift':
+                        input.shiftPressed = true;
+                        e.preventDefault();
+                        break;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                switch (e.key.toLowerCase()) {
+                    case 'a':
+                    case 'arrowleft':
+                        input.left = false;
+                        break;
+                    case 'd':
+                    case 'arrowright':
+                        input.right = false;
+                        break;
+                    case 'w':
+                    case 'arrowup':
+                    case ' ':
+                        input.jumpPressed = false;
+                        break;
+                    case 'q':
+                    case 'e':
+                    case 'shift':
+                        input.shiftPressed = false;
+                        break;
+                }
+            });
+
+            // Mobile touch buttons
+            function setupTouchButton(el, onDown, onUp) {
+                el.addEventListener('pointerdown', (e) => { e.preventDefault();
+                    onDown(); });
+                el.addEventListener('pointerup', (e) => { e.preventDefault();
+                    onUp(); });
+                el.addEventListener('pointerleave', (e) => { onUp(); });
+                el.addEventListener('pointercancel', (e) => { onUp(); });
+                el.addEventListener('touchstart', (e) => { e.preventDefault();
+                    onDown(); });
+                el.addEventListener('touchend', (e) => { e.preventDefault();
+                    onUp(); });
+            }
+
+            setupTouchButton(btnLeft,
+                () => { input.left = true; },
+                () => { input.left = false; }
+            );
+            setupTouchButton(btnRight,
+                () => { input.right = true; },
+                () => { input.right = false; }
+            );
+            setupTouchButton(btnJump,
+                () => { input.jumpPressed = true; },
+                () => { input.jumpPressed = false; }
+            );
+            setupTouchButton(btnShift,
+                () => { input.shiftPressed = true; },
+                () => { input.shiftPressed = false; }
+            );
+
+            // ─────────────────────────────────────
+            // GAME STATE
+            // ─────────────────────────────────────
+            let player;
+            let camera;
+            let score = 0;
+            let tunnelSuccessCount = 0;
+            let gameOver = false;
+            let gameOverTimer = 0;
+            let lastTunnelDisplayTimer = 0;
+            let backgroundStars = [];
+
+            function initBackgroundStars() {
+                backgroundStars = [];
+                for (let i = 0; i < 200; i++) {
+                    backgroundStars.push({
+                        x: Math.random() * 3000,
+                        y: Math.random() * H,
+                        size: Math.random() * 1.8 + 0.3,
+                        twinkle: Math.random() * Math.PI * 2,
+                        speed: Math.random() * 0.02 + 0.005,
+                    });
+                }
+            }
+
+            function resetGame() {
+                platforms = [];
+                barriers = [];
+                particles.length = 0;
+                worldRightEdge = 0;
+                const groundY = getGroundY();
+                player = new Player(120, groundY - PLAYER_RADIUS - 2);
+                camera = new Camera();
+                camera.x = player.x - W * 0.4;
+                score = 0;
+                tunnelSuccessCount = 0;
+                gameOver = false;
+                gameOverTimer = 0;
+                lastTunnelDisplayTimer = 0;
+                window._lastTunnelProb = null;
+                window._lastTunnelBarrier = null;
+                window._lastTunnelResult = null;
+
+                // Generate initial level
+                const gen = generateLevel(0, 3500);
+                platforms = gen.platforms;
+                barriers = gen.barriers;
+                worldRightEdge = Math.max(worldRightEdge, 3500);
+
+                initBackgroundStars();
+                updateHUD();
+            }
+
+            function killPlayer() {
+                if (gameOver) return;
+                gameOver = true;
+                gameOverTimer = 90;
+                sfxDeath();
+                spawnBurst(player.x, player.y, 40, '#ff3d5c', 6, 45);
+                camera.triggerShake(14, 20);
+            }
+
+            function updateHUD() {
+                // State indicator
+                if (player.isWaveState) {
+                    stateIndicator.textContent = '≈ WAVE';
+                    stateIndicator.className = 'value magenta';
+                } else {
+                    stateIndicator.textContent = '● PARTICLE';
+                    stateIndicator.className = 'value cyan';
+                }
+
+                // Position display
+                if (player.isWaveState) {
+                    const uncertainty = Math.max(3, Math.abs(player.waveJitterX) * 5 + Math.abs(player.waveJitterY) * 3);
+                    positionDisplay.textContent =
+                        `ψ(x): ${Math.round(player.x)} ± ${uncertainty.toFixed(0)} px`;
+                    positionDisplay.style.color = '#e040ff';
+                } else {
+                    positionDisplay.textContent = `x: ${Math.round(player.x)} (exact)`;
+                    positionDisplay.style.color = '#c8ccd8';
+                }
+
+                // Probability display
+                if (window._lastTunnelProb !== null && lastTunnelDisplayTimer > 0) {
+                    const pct = (window._lastTunnelProb * 100).toFixed(0);
+                    probDisplay.textContent = `${pct}%`;
+                    if (window._lastTunnelResult === 'success') {
+                        probDisplay.style.color = '#ffd740';
+                    } else if (window._lastTunnelResult === 'fail') {
+                        probDisplay.style.color = '#ff3d5c';
+                    } else {
+                        probDisplay.style.color = '#ffd740';
+                    }
+                } else if (player.isWaveState && window._lastTunnelBarrier) {
+                    const prob = calculateTunnelingProbability(
+                        window._lastTunnelBarrier.thickness,
+                        window._lastTunnelBarrier.energy
+                    );
+                    probDisplay.textContent = `${(prob*100).toFixed(0)}%`;
+                    probDisplay.style.color = '#ffd740';
+                } else {
+                    probDisplay.textContent = '--';
+                    probDisplay.style.color = '#ffd740';
+                }
+
+                // Score
+                scoreDisplay.textContent = Math.floor(score);
+            }
+
+            // ─────────────────────────────────────
+            // RENDER BACKGROUND
+            // ─────────────────────────────────────
+            function drawBackground(camX) {
+                // Deep space background
+                ctx.fillStyle = '#06060f';
+                ctx.fillRect(0, 0, W, H);
+
+                // Subtle grid
+                ctx.strokeStyle = 'rgba(30,30,60,0.5)';
+                ctx.lineWidth = 0.5;
+                const gridSize = 60;
+                const offsetX = (-camX * 0.3) % gridSize;
+                const offsetY = 0;
+                for (let gx = offsetX; gx < W; gx += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(gx, 0);
+                    ctx.lineTo(gx, H);
+                    ctx.stroke();
+                }
+                for (let gy = offsetY; gy < H; gy += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, gy);
+                    ctx.lineTo(W, gy);
+                    ctx.stroke();
+                }
+
+                // Stars
+                for (const star of backgroundStars) {
+                    const sx = star.x - camX * 0.15;
+                    const sy = star.y;
+                    if (sx < -10 || sx > W + 10) continue;
+                    star.twinkle += star.speed;
+                    const alpha = 0.3 + 0.4 * Math.sin(star.twinkle);
+                    ctx.fillStyle = `rgba(180,200,255,${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(sx % (W + 20), sy, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // ─────────────────────────────────────
+            // MAIN GAME LOOP
+            // ─────────────────────────────────────
+            function update() {
+                if (gameOver) {
+                    gameOverTimer--;
+                    camera.update();
+                    // Update particles
+                    for (let i = particles.length - 1; i >= 0; i--) {
+                        particles[i].update();
+                        if (!particles[i].alive) particles.splice(i, 1);
+                    }
+                    if (gameOverTimer <= 0) {
+                        resetGame();
+                    }
+                    return;
+                }
+
+                // Handle shift input (edge-triggered)
+                if (input.shiftPressed && !input.shiftWasPressed) {
+                    player.toggleState();
+                }
+                input.shiftWasPressed = input.shiftPressed;
+
+                // Handle jump input (edge-triggered)
+                if (input.jumpPressed && !input.jumpWasPressed) {
+                    player.jump();
+                }
+                input.jumpWasPressed = input.jumpPressed;
+
+                // Movement
+                if (player.stunTimer <= 0) {
+                    if (input.left) {
+                        player.vx = -PLAYER_SPEED;
+                        player.facingRight = false;
+                    } else if (input.right) {
+                        player.vx = PLAYER_SPEED;
+                        player.facingRight = true;
+                    } else if (!input.left && !input.right && player.onGround && !player.isWaveState) {
+                        // Natural deceleration on ground
+                        player.vx *= 0.8;
+                    }
+                }
+
+                // Update player
+                const playerStatus = player.update(platforms, barriers);
+                if (playerStatus === 'dead') {
+                    killPlayer();
+                }
+
+                // Update score based on distance
+                const newScore = Math.max(score, player.x * 0.5 + tunnelSuccessCount * 100);
+                if (newScore > score) score = newScore;
+
+                // Track successful tunnels for score
+                if (window._lastTunnelResult === 'success') {
+                    tunnelSuccessCount++;
+                    window._lastTunnelResult = null;
+                    lastTunnelDisplayTimer = 60;
+                }
+                if (window._lastTunnelResult === 'fail') {
+                    window._lastTunnelResult = null;
+                    lastTunnelDisplayTimer = 45;
+                }
+                if (lastTunnelDisplayTimer > 0) lastTunnelDisplayTimer--;
+
+                // Ensure level ahead
+                ensureLevelAhead(player.x);
+
+                // Cleanup behind
+                if (Math.random() < 0.05) cleanupBehind(player.x);
+
+                // Update camera
+                camera.follow(player.x, player.y);
+                camera.update();
+
+                // Update particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    if (!particles[i].alive) particles.splice(i, 1);
+                }
+
+                // Update tooltip
+                updateTooltip();
+
+                // Update HUD
+                updateHUD();
+            }
+
+            function updateTooltip() {
+                if (gameOver) {
+                    tooltip.innerHTML = '💀 <b>Wave function collapsed!</b> Respawning...';
+                    tooltip.style.opacity = '1';
+                } else if (player.isWaveState && window._lastTunnelBarrier && player._overlapsBarrier(window
+                        ._lastTunnelBarrier)) {
+                    const prob = calculateTunnelingProbability(
+                        window._lastTunnelBarrier.thickness,
+                        window._lastTunnelBarrier.energy
+                    );
+                    tooltip.innerHTML =
+                        `🌀 <b>Tunneling attempt...</b> Probability: <b style="color:#ffd740">${(prob*100).toFixed(0)}%</b> | Barrier E=${window._lastTunnelBarrier.energy.toFixed(1)}, d=${window._lastTunnelBarrier.thickness}px`;
+                    tooltip.style.opacity = '1';
+                } else if (player.isWaveState) {
+                    tooltip.innerHTML =
+                        '🌊 <b>Wave State:</b> Your position is a probability distribution. You <i>may</i> bypass barriers but fall through floors!';
+                    tooltip.style.opacity = '0.85';
+                } else if (!player.isWaveState && player.onGround) {
+                    tooltip.innerHTML =
+                        '⚛️ <b>Particle State:</b> Solid and predictable. Press <b>Q</b> to shift into Wave State near barriers.';
+                    tooltip.style.opacity = '0.7';
+                } else {
+                    tooltip.innerHTML =
+                        '⚛️ Press <b>Q</b> or tap <b>SHIFT</b> to toggle between Particle and Wave states.';
+                    tooltip.style.opacity = '0.6';
+                }
+            }
+
+            function render() {
+                ctx.clearRect(0, 0, W, H);
+
+                const camX = camera.getX();
+                const camY = camera.getY();
+
+                // Background
+                drawBackground(camX);
+
+                ctx.save();
+                ctx.translate(-camX, -camY);
+
+                // Draw platforms
+                for (const plat of platforms) {
+                    plat.draw(ctx, camX);
+                }
+
+                // Draw barriers
+                for (const barrier of barriers) {
+                    barrier.draw(ctx, camX);
+                }
+
+                // Draw particles (world-space)
+                for (const particle of particles) {
+                    particle.draw(ctx);
+                }
+
+                // Draw player
+                player.draw(ctx, camX);
+
+                ctx.restore();
+
+                // --- Screen-space overlays ---
+                // Vignette
+                const vignetteGrad = ctx.createRadialGradient(W / 2, H / 2, W * 0.5, W / 2, H / 2, W * 0.85);
+                vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
+                vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+                ctx.fillStyle = vignetteGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // Game over overlay
+                if (gameOver) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.fillStyle = '#ff3d5c';
+                    ctx.font = 'bold 28px "Courier New", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('WAVE FUNCTION COLLAPSED', W / 2, H / 2 - 10);
+                    ctx.fillStyle = '#c8ccd8';
+                    ctx.font = '14px "Courier New", monospace';
+                    ctx.fillText('Respawning...', W / 2, H / 2 + 30);
+                }
+
+                // Scanlines for quantum aesthetic
+                ctx.fillStyle = 'rgba(0,0,0,0.03)';
+                for (let sy = 0; sy < H; sy += 3) {
+                    ctx.fillRect(0, sy, W, 1);
+                }
+            }
+
+            function gameLoop() {
+                resizeCanvas();
+                update();
+                render();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // ─────────────────────────────────────
+            // INITIALIZATION
+            // ─────────────────────────────────────
+            function init() {
+                resizeCanvas();
+                const groundY = getGroundY();
+                player = new Player(120, groundY - PLAYER_RADIUS - 2);
+                camera = new Camera();
+                camera.x = player.x - W * 0.4;
+                score = 0;
+                tunnelSuccessCount = 0;
+                gameOver = false;
+                gameOverTimer = 0;
+                lastTunnelDisplayTimer = 0;
+                window._lastTunnelProb = null;
+                window._lastTunnelBarrier = null;
+                window._lastTunnelResult = null;
+                platforms = [];
+                barriers = [];
+                particles.length = 0;
+                worldRightEdge = 0;
+
+                const gen = generateLevel(0, 3500);
+                platforms = gen.platforms;
+                barriers = gen.barriers;
+
+                initBackgroundStars();
+                updateHUD();
+                tooltip.style.opacity = '0.7';
+
+                // Start game loop
+                requestAnimationFrame(gameLoop);
+            }
+
+            // ─────────────────────────────────────
+            // START THE GAME
+            // ─────────────────────────────────────
+            init();
+
+            console.log('%c🔬 Quantum Tunneling %cPlatformer Ready',
+                'color:#00e5ff;font-size:16px;', 'color:#c8ccd8;');
+            console.log('%cControls: A/D or Arrows = Move | W/Space/Up = Jump | Q/E/Shift = Toggle State',
+                'color:#7a7f8c;');
+            console.log('%cTunneling Probability Formula: T ≈ exp(-2κd) where κ = √(2m(V-E))/ħ',
+                'color:#ffd740;font-size:11px;');
+            console.log('%cIn Wave State: position becomes a probability distribution — you CAN tunnel through barriers but WILL fall through floors!',
+                'color:#e040ff;');
+        })();
+    </script>
+</body>
+</html>
