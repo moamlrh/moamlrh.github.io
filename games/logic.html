@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LOGIC//FLOW — a procedural circuit puzzle</title>
+<style>
+  :root{
+    --bg:#0b0d10;
+    --bg2:#0e1116;
+    --grid:rgba(57,255,136,0.05);
+    --ink:#cfe9da;
+    --dim:#5d7468;
+    --green:#39ff88;
+    --blue:#41d6ff;
+    --amber:#ffb454;
+    --red:#ff5d6c;
+    --line:rgba(65,214,255,0.18);
+    font-size:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(65,214,255,0.06), transparent 60%),
+      radial-gradient(900px 600px at 50% 120%, rgba(57,255,136,0.05), transparent 55%),
+      linear-gradient(180deg,var(--bg),var(--bg2));
+    color:var(--ink);
+    font-family:"SFMono-Regular",ui-monospace,"Cascadia Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+    overscroll-behavior:none;
+    min-height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  /* faint terminal grid + scanline, static (no animation cost) */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:42px 42px;
+    mask-image:radial-gradient(circle at 50% 40%,#000 30%,transparent 85%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,0.25) 2px 3px);
+    mix-blend-mode:multiply;
+  }
+  .wrap{position:relative;z-index:1;width:100%;max-width:760px;padding:18px 16px 28px;display:flex;flex-direction:column;gap:14px}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .brand{line-height:1}
+  .brand .logo{
+    font-weight:700;font-size:clamp(1.5rem,5.5vw,2.1rem);letter-spacing:.22em;
+    color:var(--green);text-shadow:0 0 14px rgba(57,255,136,.5);
+  }
+  .brand .logo i{font-style:normal;color:var(--blue);text-shadow:0 0 14px rgba(65,214,255,.5)}
+  .brand .sub{margin-top:6px;font-size:.62rem;letter-spacing:.34em;color:var(--dim);text-transform:uppercase}
+
+  .stats{display:flex;gap:8px}
+  .stat{
+    border:1px solid var(--line);border-radius:10px;padding:7px 12px;min-width:62px;text-align:center;
+    background:rgba(65,214,255,0.03);
+  }
+  .stat label{display:block;font-size:.52rem;letter-spacing:.22em;color:var(--dim)}
+  .stat b{display:block;font-size:1.15rem;font-weight:700;margin-top:2px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .stat.best b{color:var(--amber);text-shadow:0 0 10px rgba(255,180,84,.35)}
+
+  /* HUD */
+  .hud{
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+    background:linear-gradient(180deg,rgba(65,214,255,0.04),rgba(0,0,0,0));
+    font-size:.7rem;letter-spacing:.06em;
+  }
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:8px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.04)}
+  .pill span{color:var(--dim);font-size:.55rem;letter-spacing:.2em}
+  .pill b{font-variant-numeric:tabular-nums;font-size:.92rem;font-weight:700;transition:color .2s}
+  .pill .cur{color:var(--blue)}
+  .pill .tgt{color:var(--amber)}
+  .pill.match .cur{color:var(--green);text-shadow:0 0 10px rgba(57,255,136,.6)}
+  .hud .spacer{flex:1}
+  .hint{color:var(--dim);font-size:.62rem;letter-spacing:.04em;margin-left:auto}
+
+  /* board */
+  .board{
+    position:relative;width:100%;aspect-ratio:16/11;border-radius:16px;
+    border:1px solid var(--line);
+    background:
+      radial-gradient(120% 120% at 50% 0%,rgba(65,214,255,0.05),transparent 60%),
+      rgba(8,10,13,0.6);
+    box-shadow:inset 0 0 60px rgba(0,0,0,.6), 0 14px 40px rgba(0,0,0,.45);
+    overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;
+    transition:box-shadow .35s ease, transform .35s ease;
+  }
+  .board.solved{box-shadow:inset 0 0 60px rgba(57,255,136,.25),0 0 50px rgba(57,255,136,.35);transform:scale(1.004)}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* nodes */
+  .node{
+    position:absolute;display:grid;place-items:center;border-radius:50%;
+    transform:translate(-50%,-50%);
+    cursor:grab;will-change:transform;z-index:2;
+    color:var(--ink);
+  }
+  .node .ring{
+    position:absolute;inset:0;border-radius:50%;border:2px solid currentColor;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4) inset;
+  }
+  .node .glow{
+    position:absolute;inset:-6px;border-radius:50%;
+    background:radial-gradient(circle,currentColor,transparent 68%);
+    opacity:.18;filter:blur(2px);will-change:opacity,transform;
+    animation:pulse 2.6s ease-in-out infinite;
+  }
+  .node .face{position:relative;z-index:1;text-align:center;line-height:1.05;pointer-events:none}
+  .node .op{font-weight:700;font-size:1.05rem;letter-spacing:.02em}
+  .node .lab{display:block;font-size:.46rem;letter-spacing:.18em;color:var(--dim);margin-top:1px}
+  .node .val{font-weight:700;font-size:1.25rem;font-variant-numeric:tabular-nums}
+
+  .node.start{color:var(--green)}
+  .node.gate{color:var(--blue)}
+  .node.end{color:var(--amber)}
+  .node.in-path .glow{opacity:.4;animation-duration:1.5s}
+  .node.in-path .ring{box-shadow:0 0 14px currentColor, 0 0 0 1px rgba(0,0,0,.4) inset}
+  .node.tip .glow{opacity:.6;animation-duration:1s}
+  .node.tip{cursor:grab}
+  .node.end.ready{color:var(--green)}
+  .node.end.ready .glow{opacity:.7;animation-duration:.7s}
+  .node.spent{opacity:.85}
+  .node.enter{animation:nodeIn .5s cubic-bezier(.2,.9,.3,1.4) both}
+  .node.flash-bad .ring{animation:shake .4s ease}
+  .node:active{cursor:grabbing}
+
+  @keyframes pulse{0%,100%{opacity:.18;transform:scale(1)}50%{opacity:.42;transform:scale(1.12)}}
+  @keyframes nodeIn{from{opacity:0;transform:translate(-50%,-50%) scale(.2)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+  @keyframes shake{0%,100%{transform:translate(-50%,-50%)}20%{transform:translate(calc(-50% - 6px),-50%)}40%{transform:translate(calc(-50% + 6px),-50%)}60%{transform:translate(calc(-50% - 4px),-50%)}80%{transform:translate(calc(-50% + 4px),-50%)}}
+
+  /* success flash overlay */
+  .flash{position:absolute;inset:0;z-index:5;pointer-events:none;display:grid;place-items:center;opacity:0}
+  .flash.go{animation:flash 1s ease forwards}
+  .flash .word{
+    font-size:clamp(1.6rem,8vw,3rem);font-weight:700;letter-spacing:.3em;color:var(--green);
+    text-shadow:0 0 30px rgba(57,255,136,.8);transform:scale(.8)
+  }
+  .flash.go .word{animation:word 1s cubic-bezier(.2,.9,.3,1.2) forwards}
+  @keyframes flash{0%{opacity:0;background:rgba(57,255,136,0)}15%{opacity:1;background:rgba(57,255,136,.14)}100%{opacity:0;background:rgba(57,255,136,0)}}
+  @keyframes word{0%{transform:scale(.7);opacity:0}25%{transform:scale(1.05);opacity:1}80%{opacity:1}100%{transform:scale(1.1);opacity:0}}
+
+  /* controls */
+  .controls{display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    font-family:inherit;font-size:.72rem;letter-spacing:.12em;color:var(--ink);
+    background:rgba(65,214,255,0.05);border:1px solid var(--line);border-radius:10px;
+    padding:11px 16px;cursor:pointer;transition:transform .12s ease,background .2s,border-color .2s,color .2s;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button:hover{background:rgba(65,214,255,0.12);border-color:rgba(65,214,255,.4)}
+  button:active{transform:translateY(1px) scale(.98)}
+  button.ghost{color:var(--dim)}
+  #aboutBtn{margin-left:auto}
+
+  /* about */
+  .about{
+    max-height:0;overflow:hidden;opacity:0;
+    transition:max-height .4s ease,opacity .35s ease;
+    border:1px solid transparent;border-radius:12px;
+  }
+  .about.open{max-height:560px;opacity:1;border-color:var(--line);padding:16px 18px;background:rgba(65,214,255,0.03)}
+  .about h3{font-size:.8rem;letter-spacing:.18em;color:var(--blue);margin-bottom:10px;text-transform:uppercase}
+  .about p{font-size:.78rem;line-height:1.7;color:var(--ink);margin-bottom:10px;max-width:62ch}
+  .about p b{color:var(--green)}
+  .about code{background:rgba(0,0,0,.4);padding:1px 6px;border-radius:5px;color:var(--amber);font-size:.74rem}
+  .about .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px;font-size:.7rem;color:var(--dim)}
+  .about .legend i{font-style:normal;color:var(--ink)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:6px;box-shadow:0 0 8px currentColor}
+
+  footer{text-align:center;font-size:.58rem;letter-spacing:.2em;color:var(--dim);margin-top:2px}
+
+  @media (max-width:480px){
+    .stat{min-width:54px;padding:6px 9px}
+    .hint{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .node .glow{animation:none}
+    .board{transition:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">LOGIC<i>//</i>FLOW</div>
+      <div class="sub">procedural circuit solver</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><label>LEVEL</label><b id="statLevel">1</b></div>
+      <div class="stat"><label>STREAK</label><b id="statStreak">0</b></div>
+      <div class="stat best"><label>BEST</label><b id="statBest">0</b></div>
+    </div>
+  </header>
+
+  <div class="hud">
+    <div class="pill" id="curPill"><span>CURRENT</span><b class="cur" id="curVal">—</b></div>
+    <div class="pill"><span>TARGET</span><b class="tgt" id="tgtVal">—</b></div>
+    <div class="pill"><span>MOVES</span><b id="movesVal">0/0</b></div>
+    <div class="hint" id="hint">drag from the lit node →</div>
+  </div>
+
+  <div class="board" id="board">
+    <canvas id="cv"></canvas>
+    <div class="flash" id="flash"><div class="word">SUCCESS</div></div>
+  </div>
+
+  <div class="controls">
+    <button id="undoBtn" class="ghost">⟲ UNDO</button>
+    <button id="resetBtn" class="ghost">✕ RESET PATH</button>
+    <button id="aboutBtn">? ABOUT</button>
+  </div>
+
+  <div class="about" id="about">
+    <h3>The math under the hood</h3>
+    <p>Every node is a tiny <b>function</b>. The start node hands you a number; each gate you wire it through transforms it — <code>×2</code>, <code>+5</code>, <code>−3</code>, or <code>±</code> (flip the sign). Wiring gates in a row is literally <b>function composition</b>: the output of one becomes the input of the next. Your job is to find an ordering whose composed result equals the target.</p>
+    <p>Because gates can be picked in any order and you have a limited move budget, you're searching a tree of possible chains for one that lands exactly on the target — the same shape of problem a <b>pathfinding</b> or graph-search algorithm solves. Solve a level and you've hand-run a tiny search.</p>
+    <p>The puzzles are never hard-coded. Each level is generated by <b>working backward</b>: the game starts from your input, applies a random valid chain of operations forward, and records the result as the target. Because that chain provably exists on the board, every level is guaranteed solvable — and the space of chains is effectively infinite.</p>
+    <div class="legend">
+      <span><span class="dot" style="color:var(--green)"></span><i>IN</i> — your starting value</span>
+      <span><span class="dot" style="color:var(--blue)"></span><i>GATE</i> — a transform</span>
+      <span><span class="dot" style="color:var(--amber)"></span><i>OUT</i> — the target</span>
+    </div>
+  </div>
+
+  <footer>WIRE THE SIGNAL · REACH THE TARGET · STREAK FOREVER</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- persistence ----------
+  const KEY = "logicflow.save.v1";
+  const store = {
+    load(){
+      try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; }
+    },
+    save(){
+      try{ localStorage.setItem(KEY, JSON.stringify({level:S.level,best:S.best,streak:S.streak})); }catch(e){}
+    }
+  };
+
+  // ---------- state ----------
+  const S = {
+    level:1, streak:0, best:0,
+    startVal:0, target:0, budget:0,
+    nodes:[],          // {id,type,op,xf,yf,px,py,el}
+    path:[],           // array of node ids, always begins with 's'
+    drag:null,         // {fromId, x, y}
+    evaluating:false,
+    particles:[],
+    flow:null,         // {pts,t,dur,done}
+    needFrame:false
+  };
+
+  const board = document.getElementById("board");
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const flashEl = document.getElementById("flash");
+  let W=0, H=0, R=34, DPR=1;
+
+  // ---------- operations ----------
+  const apply = (op,v) => {
+    switch(op.t){
+      case "add": return v + op.n;
+      case "sub": return v - op.n;
+      case "mul": return v * op.n;
+      case "inv": return -v;
+    }
+    return v;
+  };
+  const opLabel = (op) => {
+    switch(op.t){
+      case "add": return "+"+op.n;
+      case "sub": return "\u2212"+op.n;   // minus sign
+      case "mul": return "\u00d7"+op.n;   // times sign
+      case "inv": return "\u00b1";        // plus-minus
+    }
+    return "?";
+  };
+  const opSub = (op) => op.t==="inv" ? "INVERT" : op.t==="mul" ? "MULT" : op.t==="add" ? "ADD" : "SUB";
+
+  const rint = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+  const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+  const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+  // build the legal operation set for a given level
+  function opPool(level, curVal){
+    const fams = ["add"];
+    fams.push("mul");
+    if(level>=2) fams.push("sub");
+    if(level>=6) fams.push("inv");
+    const out=[];
+    for(const f of fams){
+      if(f==="add") out.push({t:"add", n:rint(1, Math.min(3+level, 12))});
+      else if(f==="sub") out.push({t:"sub", n:rint(1, Math.min(3+level, 12))});
+      else if(f==="mul"){
+        // only allow multiply when it won't explode the number
+        if(Math.abs(curVal) <= 30){
+          out.push({t:"mul", n:2});
+          if(level>=4) out.push({t:"mul", n:3});
+        }
+      }
+      else if(f==="inv") out.push({t:"inv", n:0});
+    }
+    return out.length ? out : [{t:"add",n:rint(1,9)}];
+  }
+
+  // ---------- procedural generation (backward-solvable) ----------
+  function generate(level){
+    const solLen = Math.min(1 + Math.floor(level/2), 6);          // gates in the intended solution
+    const decoys = Math.min(Math.floor(level/2), 5);              // extra distractor gates
+    const CAP = 250;
+
+    let startVal, solOps, target;
+    let tries = 0;
+    do{
+      startVal = level < 5 ? rint(1,9) : (rint(0,1) ? rint(1,9) : -rint(1,9));
+      let v = startVal; solOps = [];
+      for(let i=0;i<solLen;i++){
+        const pool = opPool(level, v).filter(op => Math.abs(apply(op,v)) <= CAP);
+        const op = pool.length ? pick(pool) : {t:"add", n:rint(1,5)};
+        v = apply(op, v); solOps.push(op);
+      }
+      target = v;
+      tries++;
+    } while((target === startVal || Math.abs(target) > CAP) && tries < 40);
+
+    // decoy gates (use forward-safe ops so the board feels coherent)
+    const decoyOps = [];
+    for(let i=0;i<decoys;i++) decoyOps.push(pick(opPool(level, target)));
+
+    const gateOps = shuffle(solOps.concat(decoyOps));
+
+    // ---- lay out nodes on a left->right grid with jitter ----
+    const G = gateOps.length;
+    const cols = Math.max(1, Math.min(4, Math.ceil(G/2)));
+    const rows = Math.max(1, Math.ceil(G/cols));
+    const slots = [];
+    for(let c=0;c<cols;c++) for(let r=0;r<rows;r++){
+      const xf = cols===1 ? 0.5 : 0.27 + (c/(cols-1))*0.46;
+      const yf = rows===1 ? 0.5 : 0.2 + (r/(rows-1))*0.6;
+      slots.push({xf,yf});
+    }
+    shuffle(slots);
+
+    const nodes = [];
+    nodes.push({id:"s", type:"start", xf:0.085, yf:0.5});
+    gateOps.forEach((op,i) => {
+      const slot = slots[i] || {xf:0.5,yf:0.5};
+      nodes.push({
+        id:"g"+i, type:"gate", op,
+        xf: clamp(slot.xf + (Math.random()-0.5)*0.05, 0.22, 0.78),
+        yf: clamp(slot.yf + (Math.random()-0.5)*0.06, 0.16, 0.84)
+      });
+    });
+    nodes.push({id:"e", type:"end", xf:0.915, yf:0.5});
+
+    S.startVal = startVal;
+    S.target = target;
+    S.budget = solLen;
+    S.nodes = nodes;
+    S.path = ["s"];
+    S.drag = null;
+    S.evaluating = false;
+    S.flow = null;
+    S.particles.length = 0;
+
+    buildNodeDom();
+    layout();
+    syncNodeClasses();
+    updateHud();
+    requestDraw();
+  }
+
+  function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+  const nodeById = id => S.nodes.find(n => n.id===id);
+
+  // ---------- DOM ----------
+  function buildNodeDom(){
+    // remove old nodes
+    board.querySelectorAll(".node").forEach(el => el.remove());
+    for(const n of S.nodes){
+      const el = document.createElement("div");
+      el.className = "node "+n.type+" enter";
+      el.dataset.id = n.id;
+      let face;
+      if(n.type==="start") face = `<div class="face"><span class="lab">IN</span><span class="val">${S.startVal}</span></div>`;
+      else if(n.type==="end") face = `<div class="face"><span class="lab">OUT</span><span class="val">${S.target}</span></div>`;
+      else face = `<div class="face"><span class="op">${opLabel(n.op)}</span><span class="lab">${opSub(n.op)}</span></div>`;
+      el.innerHTML = `<div class="glow"></div><div class="ring"></div>${face}`;
+      el.addEventListener("pointerdown", onNodeDown);
+      board.appendChild(el);
+      n.el = el;
+      el.addEventListener("animationend", () => el.classList.remove("enter"), {once:true});
+    }
+  }
+
+  function layout(){
+    const rect = board.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    R = clamp(Math.min(W,H)*0.085, 26, 46);
+    for(const n of S.nodes){
+      n.px = n.xf*W; n.py = n.yf*H;
+      if(n.el){
+        n.el.style.left = n.px+"px";
+        n.el.style.top = n.py+"px";
+        n.el.style.width = (R*2)+"px";
+        n.el.style.height = (R*2)+"px";
+        const big = n.type!=="gate";
+        n.el.querySelector(".val") && (n.el.querySelector(".val").style.fontSize = clamp(R*0.55,15,24)+"px");
+        const opEl = n.el.querySelector(".op");
+        if(opEl) opEl.style.fontSize = clamp(R*0.5,14,21)+"px";
+      }
+    }
+    requestDraw();
+  }
+
+  // ---------- gameplay helpers ----------
+  const gatesUsed = () => S.path.filter(id => id!=="s" && id!=="e").length;
+  const tipId = () => S.path[S.path.length-1];
+  const pathHasEnd = () => S.path[S.path.length-1]==="e";
+
+  function currentValue(){
+    let v = S.startVal;
+    for(const id of S.path){
+      const n = nodeById(id);
+      if(n && n.type==="gate") v = apply(n.op, v);
+    }
+    return v;
+  }
+
+  function canDragFrom(id){
+    if(S.evaluating) return false;
+    if(pathHasEnd()) return false;
+    return id === tipId();
+  }
+
+  function syncNodeClasses(){
+    const inPath = new Set(S.path);
+    const tip = tipId();
+    const cur = currentValue();
+    const ready = !pathHasEnd() && cur === S.target;
+    for(const n of S.nodes){
+      const el = n.el; if(!el) return;
+      el.classList.toggle("in-path", inPath.has(n.id) && n.id!=="e");
+      el.classList.toggle("tip", n.id===tip && !pathHasEnd());
+      el.classList.toggle("spent", inPath.has(n.id) && n.id!==tip && n.type==="gate");
+      if(n.type==="end") el.classList.toggle("ready", ready);
+    }
+  }
+
+  function updateHud(){
+    const cur = currentValue();
+    document.getElementById("curVal").textContent = (S.path.length>0 ? cur : "—");
+    document.getElementById("tgtVal").textContent = S.target;
+    document.getElementById("movesVal").textContent = gatesUsed()+"/"+S.budget;
+    document.getElementById("statLevel").textContent = S.level;
+    document.getElementById("statStreak").textContent = S.streak;
+    document.getElementById("statBest").textContent = S.best;
+    document.getElementById("curPill").classList.toggle("match", !pathHasEnd() && cur===S.target);
+    const hint = document.getElementById("hint");
+    if(cur===S.target && !pathHasEnd()) hint.textContent = "match! wire into OUT \u2192";
+    else if(gatesUsed()>=S.budget) hint.textContent = "no moves left \u2014 undo or wire OUT";
+    else hint.textContent = "drag from the lit node \u2192";
+  }
+
+  // ---------- pointer / drag ----------
+  function boardPos(e){
+    const r = board.getBoundingClientRect();
+    return { x:e.clientX - r.left, y:e.clientY - r.top };
+  }
+  function nodeAt(x,y){
+    let best=null, bd=Infinity;
+    for(const n of S.nodes){
+      const d = Math.hypot(n.px-x, n.py-y);
+      if(d < R*1.35 && d < bd){ bd=d; best=n; }
+    }
+    return best;
+  }
+
+  function onNodeDown(e){
+    const id = e.currentTarget.dataset.id;
+    if(!canDragFrom(id)) return;
+    e.preventDefault();
+    const p = boardPos(e);
+    S.drag = { fromId:id, x:p.x, y:p.y };
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+    requestDraw();
+  }
+  function onMove(e){
+    if(!S.drag) return;
+    const p = boardPos(e);
+    S.drag.x = p.x; S.drag.y = p.y;
+    requestDraw();
+  }
+  function onUp(e){
+    if(!S.drag) return;
+    const p = boardPos(e);
+    const from = nodeById(S.drag.fromId);
+    const tgt = nodeAt(p.x, p.y);
+    S.drag = null;
+    requestDraw();
+    if(!tgt || tgt.id===from.id) return;
+    tryConnect(from, tgt);
+  }
+  window.addEventListener("pointermove", onMove, {passive:false});
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", () => { S.drag=null; requestDraw(); });
+
+  function tryConnect(from, tgt){
+    if(from.id !== tipId() || pathHasEnd() || S.evaluating) return;
+    if(S.path.includes(tgt.id)) return badNode(tgt);
+
+    if(tgt.type==="gate"){
+      if(gatesUsed() >= S.budget) return badNode(tgt);   // out of moves
+      S.path.push(tgt.id);
+      burst(tgt.px, tgt.py, "65,214,255", 16);
+      syncNodeClasses(); updateHud(); requestDraw();
+    } else if(tgt.type==="end"){
+      S.path.push("e");
+      evaluate();
+    } else {
+      badNode(tgt);
+    }
+  }
+
+  function badNode(n){
+    if(!n.el) return;
+    n.el.classList.remove("flash-bad");
+    void n.el.offsetWidth;
+    n.el.classList.add("flash-bad");
+  }
+
+  // ---------- evaluation + flow animation ----------
+  function evaluate(){
+    S.evaluating = true;
+    syncNodeClasses();
+    document.getElementById("hint").textContent = "running signal\u2026";
+    const pts = S.path.map(id => { const n = nodeById(id); return {x:n.px, y:n.py}; });
+    const segs = Math.max(1, pts.length-1);
+    S.flow = {
+      pts,
+      t:0,
+      dur: Math.max(560, segs*150),
+      passed: 1,
+      done(){ resolveEvaluation(); }
+    };
+    startLoop();
+  }
+
+  function resolveEvaluation(){
+    S.flow = null;
+    const finalVal = currentValue();
+    const end = nodeById("e");
+    if(finalVal === S.target){
+      success(end);
+    } else {
+      fail(end);
+    }
+  }
+
+  function success(end){
+    burst(end.px, end.py, "57,255,136", 46);
+    board.classList.add("solved");
+    flashEl.querySelector(".word").textContent = "SUCCESS";
+    flashEl.classList.remove("go"); void flashEl.offsetWidth; flashEl.classList.add("go");
+
+    S.level += 1;
+    S.streak += 1;
+    if(S.streak > S.best) S.best = S.streak;
+    store.save();
+    updateHud();
+
+    setTimeout(() => {
+      board.classList.remove("solved");
+      generate(S.level);
+    }, 950);
+  }
+
+  function fail(end){
+    badNode(end);
+    burst(end.px, end.py, "255,93,108", 22);
+    S.streak = 0;
+    store.save();
+    // pull the signal back out of OUT so the player can rewire
+    S.path.pop();
+    S.evaluating = false;
+    syncNodeClasses();
+    updateHud();
+    document.getElementById("hint").textContent = "missed the target \u2014 rewire";
+    requestDraw();
+  }
+
+  // ---------- particles ----------
+  function burst(x,y,rgb,count){
+    for(let i=0;i<count;i++){
+      const a = Math.random()*Math.PI*2;
+      const sp = 0.6 + Math.random()*2.6;
+      S.particles.push({
+        x,y,
+        vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+        life:1, decay:0.012+Math.random()*0.02,
+        size:1+Math.random()*2.4, rgb
+      });
+    }
+    startLoop();
+  }
+
+  // ---------- drawing ----------
+  function lineThrough(pts, color, width, glow){
+    if(pts.length<2) return;
+    ctx.lineCap="round"; ctx.lineJoin="round";
+    if(glow){
+      ctx.strokeStyle = color.replace("ALPHA","0.16");
+      ctx.lineWidth = width*3.4;
+      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = color.replace("ALPHA","0.95");
+    ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.stroke();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+
+    // committed path edges
+    const pts = S.path.map(id => { const n = nodeById(id); return {x:n.px,y:n.py}; });
+    const ok = currentValue()===S.target;
+    const col = S.evaluating ? "rgba(57,255,136,ALPHA)"
+               : ok ? "rgba(57,255,136,ALPHA)"
+               : "rgba(65,214,255,ALPHA)";
+    lineThrough(pts, col, 3, true);
+
+    // active drag line
+    if(S.drag){
+      const from = nodeById(S.drag.fromId);
+      ctx.setLineDash([2,7]); ctx.lineCap="round";
+      ctx.strokeStyle="rgba(207,233,218,0.55)"; ctx.lineWidth=2.2;
+      ctx.beginPath(); ctx.moveTo(from.px,from.py); ctx.lineTo(S.drag.x,S.drag.y); ctx.stroke();
+      ctx.setLineDash([]);
+      // candidate target highlight
+      const tgt = nodeAt(S.drag.x,S.drag.y);
+      if(tgt && tgt.id!==from.id && !S.path.includes(tgt.id)){
+        ctx.strokeStyle="rgba(207,233,218,0.8)"; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(tgt.px,tgt.py,R*1.18,0,Math.PI*2); ctx.stroke();
+      }
+    }
+
+    // flow pulse
+    if(S.flow){
+      const f = S.flow;
+      const seg = (f.pts.length-1);
+      const g = f.t*seg;
+      const i = Math.min(Math.floor(g), seg-1);
+      const lt = g - i;
+      const a = f.pts[i], b = f.pts[i+1];
+      const x = a.x + (b.x-a.x)*lt;
+      const y = a.y + (b.y-a.y)*lt;
+      // trail
+      const grad = ctx.createRadialGradient(x,y,0,x,y,R*0.9);
+      grad.addColorStop(0,"rgba(57,255,136,0.95)");
+      grad.addColorStop(0.5,"rgba(57,255,136,0.35)");
+      grad.addColorStop(1,"rgba(57,255,136,0)");
+      ctx.fillStyle=grad;
+      ctx.beginPath(); ctx.arc(x,y,R*0.9,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#eafff2";
+      ctx.beginPath(); ctx.arc(x,y,3.2,0,Math.PI*2); ctx.fill();
+    }
+
+    // particles
+    for(const p of S.particles){
+      ctx.globalAlpha = Math.max(0,p.life);
+      ctx.fillStyle = "rgba("+p.rgb+",1)";
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- animation loop (runs only while something moves) ----------
+  let last=0;
+  function step(t){
+    const dt = last ? (t-last) : 16; last = t;
+    let alive = false;
+
+    // particles
+    if(S.particles.length){
+      for(const p of S.particles){
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.96; p.vy *= 0.96; p.vy += 0.02;
+        p.life -= p.decay;
+      }
+      S.particles = S.particles.filter(p => p.life > 0);
+      if(S.particles.length) alive = true;
+    }
+
+    // flow
+    if(S.flow){
+      S.flow.t += dt / S.flow.dur;
+      if(S.flow.t >= 1){
+        S.flow.t = 1;
+        const done = S.flow.done;
+        draw();
+        done();           // resolveEvaluation may start a new loop
+      } else {
+        alive = true;
+      }
+    }
+
+    if(S.drag) alive = true;
+
+    draw();
+
+    if(alive){ S.needFrame=true; requestAnimationFrame(step); }
+    else { S.needFrame=false; last=0; }
+  }
+  function startLoop(){ if(!S.needFrame){ S.needFrame=true; last=0; requestAnimationFrame(step); } }
+  function requestDraw(){ if(!S.needFrame) draw(); }  // single static redraw if no loop running
+
+  // ---------- controls ----------
+  document.getElementById("undoBtn").addEventListener("click", () => {
+    if(S.evaluating || S.path.length<=1) return;
+    S.path.pop();
+    syncNodeClasses(); updateHud(); requestDraw();
+  });
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if(S.evaluating) return;
+    S.path = ["s"];
+    syncNodeClasses(); updateHud(); requestDraw();
+  });
+  document.getElementById("aboutBtn").addEventListener("click", (e) => {
+    document.getElementById("about").classList.toggle("open");
+  });
+
+  // ---------- boot ----------
+  const saved = store.load();
+  S.level  = Math.max(1, saved.level|0 || 1);
+  S.best   = saved.best|0 || 0;
+  S.streak = saved.streak|0 || 0;
+
+  let rt;
+  const ro = new ResizeObserver(() => { clearTimeout(rt); rt=setTimeout(layout, 60); });
+  ro.observe(board);
+  window.addEventListener("orientationchange", () => setTimeout(layout,200));
+
+  generate(S.level);
+})();
+</script>
+</body>
+</html>
